@@ -474,11 +474,11 @@ button {
 </div>
 
 <div class="calendar-header">
-<button class="icon-button" onpointerdown="changeMonth(-1)" aria-label="Предыдущий месяц">
+<button class="icon-button" onpointerdown="shiftMonthBy(-1)" aria-label="Предыдущий месяц">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
 </button>
 <h2 id="monthTitle"></h2>
-<button class="icon-button" onpointerdown="changeMonth(1)" aria-label="Следующий месяц">
+<button class="icon-button" onpointerdown="shiftMonthBy(1)" aria-label="Следующий месяц">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
 </button>
 </div>
@@ -514,16 +514,18 @@ dayjs.locale('ru');
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbywsHJJz9FzGV3J3G_02MR1UAyTGdT6ldqVto82zJbSFF4C2snqAZWAH2q_kpaFbp0C/exec';
 
-let currentMonth = dayjs();
-let events = [];
-let deletionShadows = [];
-let selectedDate = '';
-let previousCalendarGymsByDate = {};
-let modalEventKeysByDate = {};
-let modalUnlockTimeoutId = null;
-let modalInteractionTimeoutId = null;
-let modalInteractionToken = 0;
-let modalInteractionUnlockedAt = 0;
+const state = {
+    currentMonth: dayjs(),
+    events: [],
+    deletionShadows: [],
+    selectedDate: '',
+    previousCalendarGymsByDate: {},
+    modalEventKeysByDate: {},
+    modalUnlockTimeoutId: null,
+    modalInteractionTimeoutId: null,
+    modalInteractionToken: 0,
+    modalInteractionUnlockedAt: 0
+};
 const EVENTS_CACHE_KEY = 'climbEventsCache';
 const SYNC_INTERVAL_MS = 10_000;
 const SHADOW_TTL_MS = 5_000;
@@ -568,11 +570,31 @@ document.getElementById('userName').addEventListener('input', (e) => {
 });
 initializeModalControls();
 
-function escapeHTML(str) {
+// ===== Utilities =====
+function escapeHtml(str) {
     return str.replace(/[&<>"']/g, m => ({
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
     }[m]));
 }
+
+function setEvents(nextEvents) {
+    state.events = nextEvents;
+}
+
+function isModalOpen() {
+    return modalElement.classList.contains('open');
+}
+
+function buildEventsByDateIndex(eventsList) {
+    const byDate = new Map();
+    eventsList.forEach(event => {
+        if (!byDate.has(event.date)) byDate.set(event.date, []);
+        byDate.get(event.date).push(event);
+    });
+    return byDate;
+}
+
+// ===== UI controls =====
 
 function initializeModalControls() {
     renderCustomSelect({
@@ -606,7 +628,7 @@ function renderCustomSelect({ uiId, inputId, options, defaultValue, placeholder 
 
     container.innerHTML = `
         <button type="button" class="custom-select-trigger" data-role="trigger" aria-expanded="false">
-            <span class="custom-select-value">${escapeHTML(defaultValue || placeholder)}</span>
+            <span class="custom-select-value">${escapeHtml(defaultValue || placeholder)}</span>
             <span class="custom-select-arrow">▾</span>
         </button>
         <div class="custom-select-menu" data-role="menu"></div>
@@ -617,7 +639,7 @@ function renderCustomSelect({ uiId, inputId, options, defaultValue, placeholder 
     const menu = container.querySelector('[data-role="menu"]');
 
     menu.innerHTML = options.map(option => `
-        <button type="button" class="custom-select-option ${option === defaultValue ? 'active' : ''}" data-value="${escapeHTML(option)}">${escapeHTML(option)}</button>
+        <button type="button" class="custom-select-option ${option === defaultValue ? 'active' : ''}" data-value="${escapeHtml(option)}">${escapeHtml(option)}</button>
     `).join('');
 
     trigger.addEventListener('pointerdown', (event) => {
@@ -706,27 +728,29 @@ modalElement.addEventListener('pointerdown', (event) => {
 });
 
 function isModalInteractionLocked() {
-    return Date.now() < modalInteractionUnlockedAt;
+    return Date.now() < state.modalInteractionUnlockedAt;
 }
 
 function lockModalInteraction() {
-    if (modalInteractionTimeoutId) {
-        clearTimeout(modalInteractionTimeoutId);
-        modalInteractionTimeoutId = null;
+    if (state.modalInteractionTimeoutId) {
+        clearTimeout(state.modalInteractionTimeoutId);
+        state.modalInteractionTimeoutId = null;
     }
 
-    modalInteractionToken += 1;
-    const token = modalInteractionToken;
-    modalInteractionUnlockedAt = Date.now() + MODAL_INTERACTION_LOCK_MS;
+    state.modalInteractionToken += 1;
+    const token = state.modalInteractionToken;
+    state.modalInteractionUnlockedAt = Date.now() + MODAL_INTERACTION_LOCK_MS;
     modalElement.classList.add('interaction-locked');
-    modalInteractionTimeoutId = setTimeout(() => {
-        if (token !== modalInteractionToken) return;
+    state.modalInteractionTimeoutId = setTimeout(() => {
+        if (token !== state.modalInteractionToken) return;
         modalElement.classList.remove('interaction-locked');
-        modalInteractionTimeoutId = null;
+        state.modalInteractionTimeoutId = null;
     }, MODAL_INTERACTION_LOCK_MS);
 }
 
-async function fetchData() {
+// ===== Data normalization and API =====
+
+async function fetchEventsSnapshot() {
     try {
         const res = await fetch(API_URL);
         const rawData = await res.json();
@@ -864,45 +888,56 @@ function formatTimeForUtcPlus3(dateObj) {
     return `${hours}:${minutes}`;
 }
 
+function getEventsByDate(dateStr, eventsByDateIndex = buildEventsByDateIndex(state.events)) {
+    const dayEvents = eventsByDateIndex.get(dateStr) || [];
+    return {
+        all: dayEvents,
+        sure: dayEvents.filter(event => !event.unsure),
+        unsure: dayEvents.filter(event => event.unsure)
+    };
+}
+
+// ===== Rendering =====
+
 function renderGymIcons(dayEvents, dateStr) {
     const uniqueGyms = [...new Set(dayEvents.map(item => item.gym))].slice(0, 4);
-    const previousGyms = previousCalendarGymsByDate[dateStr] || new Set();
+    const previousGyms = state.previousCalendarGymsByDate[dateStr] || new Set();
     return `<div class="gym-icons">${uniqueGyms.map(gym => {
         const meta = gymMeta[gym];
         if (!meta || !meta.image) {
             const isNew = !previousGyms.has(gym) ? " is-new" : "";
-            return `<span class="gym-icon${isNew}" title="${escapeHTML(gym)}"></span>`;
+            return `<span class="gym-icon${isNew}" title="${escapeHtml(gym)}"></span>`;
         }
 
         const isNew = !previousGyms.has(gym) ? " is-new" : "";
-        return `<span class="gym-icon${isNew}" title="${escapeHTML(gym)}"><img src="${encodeURI(meta.image)}" alt="${escapeHTML(gym)}"></span>`;
+        return `<span class="gym-icon${isNew}" title="${escapeHtml(gym)}"><img src="${encodeURI(meta.image)}" alt="${escapeHtml(gym)}"></span>`;
     }).join('')}</div>`;
 }
 
 function renderCalendar() {
     const calendar = document.getElementById('calendar');
     const nextCalendarGymsByDate = {};
+    const eventsByDateIndex = buildEventsByDateIndex(state.events);
     calendar.innerHTML = '';
 
     document.getElementById('monthTitle').innerText =
-        currentMonth.format('MMMM YYYY').replace(/^./, m => m.toUpperCase());
+        state.currentMonth.format('MMMM YYYY').replace(/^./, m => m.toUpperCase());
 
     const weekdays = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
     weekdays.forEach(d => {
         calendar.innerHTML += `<div class="weekday">${d}</div>`;
     });
 
-    const startOffset = currentMonth.startOf('month').isoWeekday() - 1;
-    const daysInMonth = currentMonth.daysInMonth();
+    const startOffset = state.currentMonth.startOf('month').isoWeekday() - 1;
+    const daysInMonth = state.currentMonth.daysInMonth();
 
     for (let i=0;i<startOffset;i++) {
         calendar.innerHTML += `<div></div>`;
     }
 
     for (let d=1; d<=daysInMonth; d++) {
-        const dateStr = currentMonth.date(d).format('YYYY-MM-DD');
-        const sureEvents = events.filter(e => e.date === dateStr && !e.unsure);
-        const unsureEvents = events.filter(e => e.date === dateStr && e.unsure);
+        const dateStr = state.currentMonth.date(d).format('YYYY-MM-DD');
+        const { sure: sureEvents, unsure: unsureEvents } = getEventsByDate(dateStr, eventsByDateIndex);
         const hasUnsureOnly = sureEvents.length === 0 && unsureEvents.length > 0;
         nextCalendarGymsByDate[dateStr] = new Set([...new Set(sureEvents.map(item => item.gym))].slice(0, 4));
 
@@ -917,21 +952,20 @@ function renderCalendar() {
         </div>`;
     }
 
-    previousCalendarGymsByDate = nextCalendarGymsByDate;
+    state.previousCalendarGymsByDate = nextCalendarGymsByDate;
 
 }
 
 function openModal(date) {
-    selectedDate = date;
+    state.selectedDate = date;
     document.getElementById('modalDateTitle').innerText =
         dayjs(date).format('DD MMMM YYYY');
 
-    const dayEvents = events.filter(e => e.date === date);
-    const sureEvents = dayEvents.filter(e => !e.unsure);
-    const unsureEvents = dayEvents.filter(e => e.unsure);
+    const eventsByDateIndex = buildEventsByDateIndex(state.events);
+    const { sure: sureEvents, unsure: unsureEvents } = getEventsByDate(date, eventsByDateIndex);
     const orderedEvents = [...sureEvents, ...unsureEvents];
 
-    const previousModalKeys = modalEventKeysByDate[date] || new Set();
+    const previousModalKeys = state.modalEventKeysByDate[date] || new Set();
     const nextModalKeys = new Set();
 
     const fingerprintCounts = {};
@@ -943,12 +977,12 @@ function openModal(date) {
             const eventKey = `${e.fingerprint}|${sameFingerprintCount}`;
             nextModalKeys.add(eventKey);
             const isNew = previousModalKeys.has(eventKey) ? '' : ' is-new';
-            return `<div class="visit-item${isNew} ${e.unsure ? 'uncertain' : ''}"><div class="visit-text"><b class="visit-name${e.unsure ? ' uncertain' : ''}">${escapeHTML(e.name)}${e.unsure ? ' (?)' : ''}</b> – ${escapeHTML(e.gym)}${e.time ? ` (${escapeHTML(e.time)})` : ''}</div>
-                <button class="delete-btn" onclick="deleteVisit('${escapeHTML(e.id)}')">Удалить</button></div>`;
+            return `<div class="visit-item${isNew} ${e.unsure ? 'uncertain' : ''}"><div class="visit-text"><b class="visit-name${e.unsure ? ' uncertain' : ''}">${escapeHtml(e.name)}${e.unsure ? ' (?)' : ''}</b> – ${escapeHtml(e.gym)}${e.time ? ` (${escapeHtml(e.time)})` : ''}</div>
+                <button class="delete-btn" onclick="deleteVisit('${escapeHtml(e.id)}')">Удалить</button></div>`;
           }).join('')
         : 'Пока никто не записался';
 
-    modalEventKeysByDate[date] = nextModalKeys;
+    state.modalEventKeysByDate[date] = nextModalKeys;
 
     const baseEvent = sureEvents[0] || unsureEvents[0] || null;
     if (baseEvent) {
@@ -958,9 +992,9 @@ function openModal(date) {
         }
     }
 
-    if (modalUnlockTimeoutId) {
-        clearTimeout(modalUnlockTimeoutId);
-        modalUnlockTimeoutId = null;
+    if (state.modalUnlockTimeoutId) {
+        clearTimeout(state.modalUnlockTimeoutId);
+        state.modalUnlockTimeoutId = null;
     }
     document.body.style.overflow = 'hidden';
     overlayElement.classList.add('open');
@@ -970,12 +1004,12 @@ function openModal(date) {
 }
 
 function closeModal({ deferUnlock = false } = {}) {
-    modalInteractionToken += 1;
-    modalInteractionUnlockedAt = 0;
+    state.modalInteractionToken += 1;
+    state.modalInteractionUnlockedAt = 0;
     modalElement.classList.remove('interaction-locked');
-    if (modalInteractionTimeoutId) {
-        clearTimeout(modalInteractionTimeoutId);
-        modalInteractionTimeoutId = null;
+    if (state.modalInteractionTimeoutId) {
+        clearTimeout(state.modalInteractionTimeoutId);
+        state.modalInteractionTimeoutId = null;
     }
 
     overlayElement.classList.remove('open');
@@ -983,15 +1017,15 @@ function closeModal({ deferUnlock = false } = {}) {
 
     const unlockScroll = () => {
         document.body.style.overflow = '';
-        modalUnlockTimeoutId = null;
+        state.modalUnlockTimeoutId = null;
     };
 
-    if (modalUnlockTimeoutId) {
-        clearTimeout(modalUnlockTimeoutId);
+    if (state.modalUnlockTimeoutId) {
+        clearTimeout(state.modalUnlockTimeoutId);
     }
 
     if (deferUnlock) {
-        modalUnlockTimeoutId = setTimeout(unlockScroll, 0);
+        state.modalUnlockTimeoutId = setTimeout(unlockScroll, 0);
         return;
     }
 
@@ -1002,13 +1036,15 @@ document.addEventListener('keydown', e=>{
     if(e.key==='Escape') closeModal();
 });
 
+// ===== User actions and sync =====
+
 async function submitVisit() {
     const name = (localStorage.getItem('climberName') || '').trim();
     if (!name) return alert('Сначала введи имя');
 
     const newEvent = withFingerprint({
         id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        date: selectedDate,
+        date: state.selectedDate,
         name,
         gym: document.getElementById('gymSelect').value,
         time: document.getElementById('visitTime').value,
@@ -1018,17 +1054,17 @@ async function submitVisit() {
         row: null
     });
 
-    events.push(newEvent);
+    state.events.push(newEvent);
     persistEvents();
     renderCalendar();
-    openModal(selectedDate);
+    openModal(state.selectedDate);
 
     const created = await createVisitOnServer(newEvent);
     if (!created) {
-        events = events.filter(event => event.id !== newEvent.id);
+        setEvents(state.events.filter(event => event.id !== newEvent.id));
         persistEvents();
         renderCalendar();
-        openModal(selectedDate);
+        openModal(state.selectedDate);
         alert('Не удалось сохранить запись. Попробуй еще раз.');
         return;
     }
@@ -1045,7 +1081,8 @@ async function createVisitOnServer(newEvent) {
                 date: newEvent.date,
                 name: newEvent.unsure ? `${newEvent.name}${UNSURE_MARK}` : newEvent.name,
                 gym: newEvent.gym,
-                time: newEvent.time
+                time: newEvent.time,
+                unsure: newEvent.unsure
             })
         });
         return res.ok;
@@ -1056,18 +1093,18 @@ async function createVisitOnServer(newEvent) {
 }
 
 async function deleteVisit(eventId) {
-    const target = events.find(event => event.id === eventId);
+    const target = state.events.find(event => event.id === eventId);
     if (!target) return;
 
-    events = events.filter(event => event.id !== eventId);
-    deletionShadows.push({
+    setEvents(state.events.filter(event => event.id !== eventId));
+    state.deletionShadows.push({
         fingerprint: target.fingerprint,
         createdAt: Date.now()
     });
     pruneDeletionShadows();
     persistEvents();
     renderCalendar();
-    openModal(selectedDate);
+    openModal(state.selectedDate);
 
     if (!target.row) return;
 
@@ -1086,18 +1123,18 @@ async function deleteVisit(eventId) {
 }
 
 function persistEvents() {
-    localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(events));
+    localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(state.events));
 }
 
 function pruneDeletionShadows(now = Date.now()) {
-    deletionShadows = deletionShadows.filter(item => now - item.createdAt < SHADOW_TTL_MS);
+    state.deletionShadows = state.deletionShadows.filter(item => now - item.createdAt < SHADOW_TTL_MS);
 }
 
 function loadCachedEvents() {
     try {
         const raw = localStorage.getItem(EVENTS_CACHE_KEY);
         if (!raw) return false;
-        events = normalizeEvents(JSON.parse(raw));
+        setEvents(normalizeEvents(JSON.parse(raw)));
         renderCalendar();
         return true;
     } catch {
@@ -1108,29 +1145,29 @@ function loadCachedEvents() {
 
 async function initializeCalendar() {
     const hasCache = loadCachedEvents();
-    const serverEvents = await fetchData();
+    const serverEvents = await fetchEventsSnapshot();
 
     if (!serverEvents) {
         if (!hasCache) renderCalendar();
         return;
     }
 
-    applyServerSnapshot(serverEvents);
+    reconcileWithServerSnapshot(serverEvents);
 }
 
-function applyServerSnapshot(serverEvents) {
-    const mergedEvents = mergeServerWithOptimisticEvents(serverEvents, events);
-    const serializedCurrent = JSON.stringify(events);
+function reconcileWithServerSnapshot(serverEvents) {
+    const mergedEvents = mergeServerWithOptimisticEvents(serverEvents, state.events);
+    const serializedCurrent = JSON.stringify(state.events);
     const serializedMerged = JSON.stringify(mergedEvents);
     if (serializedCurrent === serializedMerged) {
         return;
     }
 
-    events = mergedEvents;
+    setEvents(mergedEvents);
     persistEvents();
     renderCalendar();
-    if (document.getElementById('modal').classList.contains('open')) {
-        openModal(selectedDate);
+    if (isModalOpen()) {
+        openModal(state.selectedDate);
     }
 
 }
@@ -1139,7 +1176,7 @@ function mergeServerWithOptimisticEvents(serverEvents, currentEvents) {
     const now = Date.now();
     pruneDeletionShadows(now);
 
-    const blockedFingerprints = new Set(deletionShadows.map(item => item.fingerprint));
+    const blockedFingerprints = new Set(state.deletionShadows.map(item => item.fingerprint));
     const filteredServerEvents = serverEvents.filter(event => !blockedFingerprints.has(event.fingerprint));
     const serverFingerprints = new Set(serverEvents.map(event => event.fingerprint));
     const optimisticEvents = currentEvents.filter(event => {
@@ -1152,12 +1189,12 @@ function mergeServerWithOptimisticEvents(serverEvents, currentEvents) {
 }
 
 async function syncChanges() {
-    const serverEvents = await fetchData();
+    const serverEvents = await fetchEventsSnapshot();
     if (!serverEvents) return;
-    applyServerSnapshot(serverEvents);
+    reconcileWithServerSnapshot(serverEvents);
 }
 
-function changeMonth(step) {
+function shiftMonthBy(step) {
     const wrap = document.getElementById('calendarWrap');
     const title = document.getElementById('monthTitle');
     wrap.classList.remove('slide-left', 'slide-right');
@@ -1165,7 +1202,7 @@ function changeMonth(step) {
     wrap.classList.add(step > 0 ? 'slide-left' : 'slide-right', 'animating');
     title.classList.add(step > 0 ? 'slide-left' : 'slide-right', 'animating');
 
-    currentMonth = currentMonth.add(step, 'month');
+    state.currentMonth = state.currentMonth.add(step, 'month');
     setTimeout(() => {
         renderCalendar();
         wrap.classList.remove('animating');
