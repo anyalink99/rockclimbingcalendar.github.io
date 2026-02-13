@@ -22,6 +22,8 @@
     --input-text: #ffffff;
     --secondary-bg: #2a2a2a;
     --overlay-bg: rgba(0,0,0,0.7);
+    --day-border-event: #4caf50;
+    --day-border-unsure: #f5c542;
 }
 
 :root[data-theme="grandmaster"] {
@@ -36,6 +38,8 @@
     --input-text: #f7ecdf;
     --secondary-bg: #3a291d;
     --overlay-bg: rgba(20, 12, 7, 0.72);
+    --day-border-event: #8fc28f;
+    --day-border-unsure: #f0c778;
 }
 
 :root[data-theme="ivory"] {
@@ -50,6 +54,8 @@
     --input-text: #4a3b2a;
     --secondary-bg: #f0e5d3;
     --overlay-bg: rgba(58, 41, 24, 0.32);
+    --day-border-event: #5f9b6a;
+    --day-border-unsure: #cf9852;
 }
 
 :root[data-theme="forest"] {
@@ -64,6 +70,8 @@
     --input-text: #e7f4e8;
     --secondary-bg: #223a2f;
     --overlay-bg: rgba(8, 16, 12, 0.74);
+    --day-border-event: #66d17c;
+    --day-border-unsure: #e1c56a;
 }
 
 :root[data-theme="ocean"] {
@@ -78,6 +86,8 @@
     --input-text: #e6f1ff;
     --secondary-bg: #20314e;
     --overlay-bg: rgba(7, 14, 23, 0.78);
+    --day-border-event: #76d1a5;
+    --day-border-unsure: #f1c46b;
 }
 
 body {
@@ -267,11 +277,11 @@ button {
 }
 
 .day.has-events {
-    border-color: var(--success);
+    border-color: var(--day-border-event);
 }
 
 .day.has-unsure-only {
-    border-color: var(--warning);
+    border-color: var(--day-border-unsure);
 }
 
 .count {
@@ -525,42 +535,45 @@ button {
     font-size: 0.85em;
 }
 
-.theme-switcher {
+.theme-cycle-button {
     position: fixed;
     left: 12px;
     bottom: 12px;
     z-index: 20;
-    background: var(--card-bg);
+    width: 44px;
+    height: 44px;
+    background: color-mix(in srgb, var(--card-bg) 68%, var(--accent));
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 8px 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    border-radius: 999px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    color: color-mix(in srgb, var(--accent) 78%, #ffffff);
     box-shadow: 0 6px 22px rgba(0, 0, 0, 0.25);
+    transition: transform 0.14s ease, border-color 0.14s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
-.theme-switcher label {
-    font-size: 0.85em;
-    opacity: 0.9;
+.theme-cycle-button:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent);
 }
 
-.theme-switcher select {
-    margin: 0;
-    min-width: 174px;
-    padding: 6px 8px;
+.theme-cycle-button svg {
+    width: 24px;
+    height: 24px;
 }
 
 @media (max-width: 700px) {
-    .theme-switcher {
+    .theme-cycle-button {
         left: 8px;
-        right: 8px;
         bottom: 8px;
     }
+}
 
-    .theme-switcher select {
-        min-width: 0;
-    }
+.count svg {
+    width: 12px;
+    height: 12px;
+    vertical-align: -1px;
 }
 </style>
 </head>
@@ -588,10 +601,15 @@ button {
 
 </div>
 
-<div class="theme-switcher">
-    <label for="themeSelect">Тема</label>
-    <select id="themeSelect" aria-label="Выбор цветовой темы"></select>
-</div>
+<button id="themeCycleButton" class="theme-cycle-button" type="button" aria-label="Сменить цветовую тему" title="Сменить цветовую тему" onpointerdown="cycleTheme()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3.2c-4.86 0-8.8 3.94-8.8 8.8S7.14 20.8 12 20.8h.39c1.28 0 2.1-1.38 1.47-2.5l-.15-.26c-.61-1.07.17-2.41 1.41-2.41h1.96a3.72 3.72 0 0 0 0-7.44H12z"/>
+        <circle cx="7.95" cy="9.15" r="1.2" fill="currentColor" stroke="none"/>
+        <circle cx="11.25" cy="7.7" r="1.1" fill="currentColor" stroke="none"/>
+        <circle cx="14.85" cy="8.5" r="1.1" fill="currentColor" stroke="none"/>
+        <circle cx="16.6" cy="11.9" r="1.1" fill="currentColor" stroke="none"/>
+    </svg>
+</button>
 
 <div class="overlay" id="overlay"></div>
 
@@ -668,7 +686,7 @@ const gymOptions = [
 
 const overlayElement = document.getElementById('overlay');
 const modalElement = document.getElementById('modal');
-const themeSelectElement = document.getElementById('themeSelect');
+const themeCycleButtonElement = document.getElementById('themeCycleButton');
 
 const themes = [
     { value: 'midnight', label: 'Ночная классика' },
@@ -704,20 +722,22 @@ function applyTheme(themeValue) {
     } else {
         document.documentElement.setAttribute('data-theme', activeTheme);
     }
-    themeSelectElement.value = activeTheme;
     localStorage.setItem(THEME_STORAGE_KEY, activeTheme);
+    const activeThemeMeta = themes.find(theme => theme.value === activeTheme) || themes[0];
+    themeCycleButtonElement.setAttribute('title', `Тема: ${activeThemeMeta.label} (нажми, чтобы переключить)`);
+    themeCycleButtonElement.setAttribute('aria-label', `Тема: ${activeThemeMeta.label}. Нажми, чтобы переключить`);
 }
 
 function initializeThemeSwitcher() {
-    themeSelectElement.innerHTML = themes.map(theme =>
-        `<option value="${theme.value}">${escapeHtml(theme.label)}</option>`
-    ).join('');
-
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'midnight';
     applyTheme(storedTheme);
-    themeSelectElement.addEventListener('change', (event) => {
-        applyTheme(event.target.value);
-    });
+}
+
+function cycleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'midnight';
+    const currentIndex = themes.findIndex(theme => theme.value === currentTheme);
+    const nextIndex = (currentIndex + 1) % themes.length;
+    applyTheme(themes[nextIndex].value);
 }
 
 function isModalOpen() {
@@ -1087,7 +1107,7 @@ function renderCalendar() {
             onpointerdown="openModal('${dateStr}')">
             <div>${d}</div>
             ${sureEvents.length ? renderGymIcons(sureEvents, dateStr) : '<div></div>'}
-            <div class="count">${sureEvents.length ? sureEvents.length + ' 👥' : ''}</div>
+            <div class="count">${sureEvents.length ? `${sureEvents.length} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="8" r="2.5"></circle><path d="M3.8 16.6c.3-2.2 2-3.6 4.7-3.6s4.4 1.4 4.7 3.6"></path><circle cx="16" cy="8.8" r="2"></circle><path d="M13.3 16.6c.23-1.75 1.46-2.86 3.4-2.86 1.84 0 3.03 1.04 3.3 2.86"></path></svg>` : ''}</div>
         </div>`;
     }
 
