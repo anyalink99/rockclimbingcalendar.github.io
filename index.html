@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClimbSync - Календарь Пролазов</title>
+
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isoWeek.js"></script>
+
+<style>
+:root {
+    --bg: #121212;
+    --card-bg: #1e1e1e;
+    --accent: #bb86fc;
+    --text: #e0e0e0;
+    --border: #333;
+    --success: #4caf50;
+}
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    margin: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    width: 95%;
+    max-width: 800px;
+    padding: 20px;
+}
+
+header { text-align: center; margin-bottom: 20px; }
+
+.profile-card {
+    background: var(--card-bg);
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+}
+
+input, select {
+    background: #2d2d2d;
+    border: 1px solid var(--border);
+    color: white;
+    padding: 8px;
+    border-radius: 6px;
+    margin: 5px 0;
+    width: 100%;
+}
+
+button {
+    background: var(--accent);
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    margin-top: 10px;
+}
+
+.weekday {
+    text-align: center;
+    font-size: 0.8em;
+    opacity: 0.6;
+}
+
+.day {
+    aspect-ratio: 1/1;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: 0.2s;
+}
+
+.day:hover { border-color: var(--accent); }
+
+.day.today {
+    border-bottom: 3px solid var(--accent);
+}
+
+.day.has-events {
+    border-color: var(--success);
+}
+
+.count {
+    font-size: 0.75em;
+    opacity: 0.8;
+}
+
+.loader {
+    text-align: center;
+    margin: 10px 0;
+}
+
+#modal, .overlay {
+    display: none;
+    position: fixed;
+}
+
+.overlay {
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+}
+
+#modal {
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 15px;
+    width: 300px;
+    z-index: 10;
+}
+
+.success-message {
+    color: var(--success);
+    font-size: 0.85em;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<header>
+<h1>🧗 ClimbSync</h1>
+</header>
+
+<div class="profile-card">
+<h3>Твой профиль</h3>
+<input type="text" id="userName" placeholder="Имя">
+<button onclick="saveProfile()">Сохранить</button>
+</div>
+
+<div class="calendar-header">
+<button onclick="changeMonth(-1)">⬅️</button>
+<h2 id="monthTitle"></h2>
+<button onclick="changeMonth(1)">➡️</button>
+</div>
+
+<div id="calendar" class="grid"></div>
+<div id="loader" class="loader">Загрузка...</div>
+
+</div>
+
+<div class="overlay" id="overlay" onclick="closeModal()"></div>
+
+<div id="modal">
+<h3 id="modalDateTitle"></h3>
+<div id="visitsList"></div>
+<hr>
+<select id="gymSelect">
+<option>Bigwall Динамо</option>
+<option>Bigwall Гавань</option>
+<option>Bigwall Ривьера</option>
+<option>ClimbLab Бутырская</option>
+<option>ClimbLab Аминьевская</option>
+<option>Tengu's Мичуринский</option>
+<option>Tengu's Южная</option>
+<option>Limestone</option>
+<option>Rockzona</option>
+<option>Tokyo</option>
+<option>ЦСКА</option>
+</select>
+<input type="time" id="visitTime" value="19:00">
+<button onclick="submitVisit()">Записаться</button>
+<div id="submitStatus"></div>
+</div>
+
+<script>
+dayjs.extend(window.dayjs_plugin_isoWeek);
+
+const API_URL = 'https://script.google.com/macros/s/AKfycbywsHJJz9FzGV3J3G_02MR1UAyTGdT6ldqVto82zJbSFF4C2snqAZWAH2q_kpaFbp0C/exec';
+
+let currentMonth = dayjs();
+let events = [];
+let selectedDate = '';
+
+document.getElementById('userName').value = localStorage.getItem('climberName') || '';
+
+function escapeHTML(str) {
+    return str.replace(/[&<>"']/g, m => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+    }[m]));
+}
+
+function saveProfile() {
+    localStorage.setItem('climberName', document.getElementById('userName').value);
+    alert('Профиль сохранён');
+}
+
+async function fetchData() {
+    try {
+        document.getElementById('loader').style.display = 'block';
+        const res = await fetch(API_URL);
+        events = await res.json();
+        renderCalendar();
+    } catch (e) {
+        alert('Ошибка загрузки данных');
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+    }
+}
+
+function renderCalendar() {
+    const calendar = document.getElementById('calendar');
+    calendar.innerHTML = '';
+
+    document.getElementById('monthTitle').innerText =
+        currentMonth.format('MMMM YYYY');
+
+    const weekdays = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    weekdays.forEach(d => {
+        calendar.innerHTML += `<div class="weekday">${d}</div>`;
+    });
+
+    const startOffset = currentMonth.startOf('month').isoWeekday() - 1;
+    const daysInMonth = currentMonth.daysInMonth();
+
+    for (let i=0;i<startOffset;i++) {
+        calendar.innerHTML += `<div></div>`;
+    }
+
+    for (let d=1; d<=daysInMonth; d++) {
+        const dateStr = currentMonth.date(d).format('YYYY-MM-DD');
+        const dayEvents = events.filter(e => e.date === dateStr);
+
+        const isToday = dayjs().format('YYYY-MM-DD') === dateStr;
+
+        calendar.innerHTML += `
+        <div class="day ${isToday?'today':''} ${dayEvents.length?'has-events':''}"
+            onclick="openModal('${dateStr}')">
+            <div>${d}</div>
+            <div class="count">${dayEvents.length ? dayEvents.length + ' 👥' : ''}</div>
+        </div>`;
+    }
+}
+
+function openModal(date) {
+    selectedDate = date;
+    document.getElementById('modalDateTitle').innerText =
+        dayjs(date).format('DD MMMM YYYY');
+
+    const dayEvents = events.filter(e => e.date === date);
+
+    document.getElementById('visitsList').innerHTML =
+        dayEvents.length
+        ? dayEvents.map(e =>
+            `<div><b>${escapeHTML(e.name)}</b> – ${escapeHTML(e.gym)} (${escapeHTML(e.time)})</div>`
+          ).join('')
+        : 'Пока никто не записался';
+
+    document.getElementById('overlay').style.display = 'block';
+    document.getElementById('modal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('modal').style.display = 'none';
+    document.getElementById('submitStatus').innerHTML = '';
+}
+
+document.addEventListener('keydown', e=>{
+    if(e.key==='Escape') closeModal();
+});
+
+async function submitVisit() {
+    const name = localStorage.getItem('climberName');
+    if (!name) return alert('Сначала введи имя');
+
+    const newEvent = {
+        date: selectedDate,
+        name,
+        gym: document.getElementById('gymSelect').value,
+        time: document.getElementById('visitTime').value
+    };
+
+    const status = document.getElementById('submitStatus');
+    status.innerHTML = 'Отправка...';
+
+    try {
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(newEvent)
+        });
+
+        if (!res.ok) throw new Error();
+
+        status.innerHTML = '<div class="success-message">Записано ✅</div>';
+        await fetchData();
+        setTimeout(closeModal, 800);
+
+    } catch {
+        status.innerHTML = 'Ошибка отправки';
+    }
+}
+
+function changeMonth(step) {
+    currentMonth = currentMonth.add(step, 'month');
+    renderCalendar();
+}
+
+fetchData();
+</script>
+
+</body>
+</html>
