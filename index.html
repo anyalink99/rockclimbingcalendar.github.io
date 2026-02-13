@@ -17,6 +17,7 @@
     --text: #e0e0e0;
     --border: #333;
     --success: #4caf50;
+    --warning: #f5c542;
 }
 
 body {
@@ -206,6 +207,10 @@ button {
 
 .day.has-events {
     border-color: var(--success);
+}
+
+.day.has-unsure-only {
+    border-color: var(--warning);
 }
 
 .count {
@@ -469,7 +474,7 @@ button {
 
 </div>
 
-<div class="overlay" id="overlay" onpointerdown="closeModal()"></div>
+<div class="overlay" id="overlay"></div>
 
 <div id="modal">
 <h3 id="modalDateTitle"></h3>
@@ -500,6 +505,7 @@ let deletionShadows = [];
 let selectedDate = '';
 let previousCalendarGymsByDate = {};
 let modalEventKeysByDate = {};
+let modalUnlockTimeoutId = null;
 const EVENTS_CACHE_KEY = 'climbEventsCache';
 const SYNC_INTERVAL_MS = 10_000;
 const SHADOW_TTL_MS = 5_000;
@@ -533,6 +539,9 @@ const gymOptions = [
     'Tokyo',
     'ЦСКА'
 ];
+
+const overlayElement = document.getElementById('overlay');
+const modalElement = document.getElementById('modal');
 
 document.getElementById('userName').value = localStorage.getItem('climberName') || '';
 document.getElementById('userName').addEventListener('input', (e) => {
@@ -659,6 +668,21 @@ document.addEventListener('pointerdown', (event) => {
         closeAllCustomSelects();
     }
 
+});
+
+overlayElement.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeModal({ deferUnlock: true });
+});
+
+overlayElement.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+});
+
+modalElement.addEventListener('pointerdown', (event) => {
+    event.stopPropagation();
 });
 
 async function fetchData() {
@@ -836,17 +860,19 @@ function renderCalendar() {
 
     for (let d=1; d<=daysInMonth; d++) {
         const dateStr = currentMonth.date(d).format('YYYY-MM-DD');
-        const dayEvents = events.filter(e => e.date === dateStr && !e.unsure);
-        nextCalendarGymsByDate[dateStr] = new Set([...new Set(dayEvents.map(item => item.gym))].slice(0, 4));
+        const sureEvents = events.filter(e => e.date === dateStr && !e.unsure);
+        const unsureEvents = events.filter(e => e.date === dateStr && e.unsure);
+        const hasUnsureOnly = sureEvents.length === 0 && unsureEvents.length > 0;
+        nextCalendarGymsByDate[dateStr] = new Set([...new Set(sureEvents.map(item => item.gym))].slice(0, 4));
 
         const isToday = dayjs().format('YYYY-MM-DD') === dateStr;
 
         calendar.innerHTML += `
-        <div class="day ${isToday?'today':''} ${dayEvents.length?'has-events':''}"
+        <div class="day ${isToday?'today':''} ${sureEvents.length?'has-events':''} ${hasUnsureOnly ? 'has-unsure-only' : ''}"
             onpointerdown="openModal('${dateStr}')">
             <div>${d}</div>
-            ${dayEvents.length ? renderGymIcons(dayEvents, dateStr) : '<div></div>'}
-            <div class="count">${dayEvents.length ? dayEvents.length + ' 👥' : ''}</div>
+            ${sureEvents.length ? renderGymIcons(sureEvents, dateStr) : '<div></div>'}
+            <div class="count">${sureEvents.length ? sureEvents.length + ' 👥' : ''}</div>
         </div>`;
     }
 
@@ -891,14 +917,35 @@ function openModal(date) {
         }
     }
 
-    document.getElementById('overlay').classList.add('open');
-    document.getElementById('modal').classList.add('open');
+    if (modalUnlockTimeoutId) {
+        clearTimeout(modalUnlockTimeoutId);
+        modalUnlockTimeoutId = null;
+    }
+    document.body.style.overflow = 'hidden';
+    overlayElement.classList.add('open');
+    modalElement.classList.add('open');
     document.getElementById('visitUncertain').checked = false;
 }
 
-function closeModal() {
-    document.getElementById('overlay').classList.remove('open');
-    document.getElementById('modal').classList.remove('open');
+function closeModal({ deferUnlock = false } = {}) {
+    overlayElement.classList.remove('open');
+    modalElement.classList.remove('open');
+
+    const unlockScroll = () => {
+        document.body.style.overflow = '';
+        modalUnlockTimeoutId = null;
+    };
+
+    if (modalUnlockTimeoutId) {
+        clearTimeout(modalUnlockTimeoutId);
+    }
+
+    if (deferUnlock) {
+        modalUnlockTimeoutId = setTimeout(unlockScroll, 0);
+        return;
+    }
+
+    unlockScroll();
 }
 
 document.addEventListener('keydown', e=>{
