@@ -175,12 +175,11 @@ button {
     overflow: hidden;
     background: #2d2d2d;
     display: inline-flex;
-    animation: icon-enter 0.2s ease both;
 }
 
-.gym-icon:nth-child(2) { animation-delay: 0.02s; }
-.gym-icon:nth-child(3) { animation-delay: 0.04s; }
-.gym-icon:nth-child(4) { animation-delay: 0.06s; }
+.gym-icon.is-new {
+    animation: fade-scale-in 0.14s ease-out both;
+}
 
 .gym-icon img {
     width: 100%;
@@ -249,19 +248,15 @@ button {
     gap: 8px;
     margin-bottom: 6px;
     font-size: 0.94em;
-    opacity: 0;
-    transform: translateY(4px);
-    animation: visit-enter 0.16s ease forwards;
+}
+
+.visit-item.is-new {
+    animation: fade-scale-in 0.14s ease-out both;
 }
 
 .visit-item.uncertain {
-    filter: opacity(95%);
+    filter: opacity(85%);
 }
-
-.visit-item:nth-child(2) { animation-delay: 0.02s; }
-.visit-item:nth-child(3) { animation-delay: 0.04s; }
-.visit-item:nth-child(4) { animation-delay: 0.06s; }
-.visit-item:nth-child(5) { animation-delay: 0.08s; }
 
 .delete-btn {
     background: #b12e2e;
@@ -291,34 +286,67 @@ button {
 
 .modal-controls {
     display: grid;
-    gap: 10px;
+    gap: 12px;
 }
 
 .uncertain-toggle {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 12px;
     font-size: 0.92em;
-    opacity: 0.9;
+    opacity: 0.95;
     user-select: none;
+    padding: 2px 0;
 }
 
-.uncertain-toggle input {
-    width: auto;
+.uncertain-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
     margin: 0;
+    border-radius: 5px;
+    border: 1px solid #5a5a5a;
+    background: #2a2a2a;
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    transition: border-color 0.14s ease, background-color 0.14s ease, transform 0.14s ease;
 }
 
-@keyframes visit-enter {
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.uncertain-checkbox::before {
+    content: '';
+    color: #121212;
+    font-size: 12px;
+    line-height: 1;
+    transform: scale(0.7);
+    transition: transform 0.14s ease, color 0.14s ease;
 }
 
-@keyframes icon-enter {
+.uncertain-checkbox:hover {
+    border-color: var(--accent);
+}
+
+.uncertain-checkbox:checked {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.uncertain-checkbox:checked::before {
+    content: '✓';
+    color: #121212;
+    transform: scale(1);
+}
+
+.uncertain-checkbox:active {
+    transform: scale(0.96);
+}
+
+@keyframes fade-scale-in {
     from {
         opacity: 0;
-        transform: scale(0.9);
+        transform: scale(0.985);
     }
     to {
         opacity: 1;
@@ -328,6 +356,7 @@ button {
 
 #submitVisitButton {
     margin-top: 0;
+    padding: 11px 10px;
 }
 
 .custom-select {
@@ -339,7 +368,7 @@ button {
     background: #2d2d2d;
     border: 1px solid var(--border);
     color: #fff;
-    padding: 10px 12px;
+    padding: 11px 12px;
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -427,8 +456,8 @@ button {
 <div class="custom-select" id="visitTimeUi"></div>
 <input type="hidden" id="visitTime">
 <label class="uncertain-toggle" for="visitUncertain">
-    <input type="checkbox" id="visitUncertain">
-    Не уверен
+    <span>Не уверен</span>
+    <input type="checkbox" id="visitUncertain" class="uncertain-checkbox">
 </label>
 <button id="submitVisitButton" onpointerdown="submitVisit()">Записаться</button>
 </div>
@@ -444,10 +473,13 @@ let currentMonth = dayjs();
 let events = [];
 let deletionShadows = [];
 let selectedDate = '';
+let previousCalendarGymsByDate = {};
+let modalEventKeysByDate = {};
 const EVENTS_CACHE_KEY = 'climbEventsCache';
 const SYNC_INTERVAL_MS = 10_000;
 const SHADOW_TTL_MS = 5_000;
 const UTC_PLUS_3_OFFSET_MINUTES = 3 * 60;
+const UNSURE_MARK = ' (?)';
 
 const gymMeta = {
     'Bigwall Динамо': { image: 'icons/bigwall.png' },
@@ -580,6 +612,7 @@ document.addEventListener('pointerdown', (event) => {
     if (!event.target.closest('.custom-select')) {
         closeAllCustomSelects();
     }
+
 });
 
 async function fetchData() {
@@ -590,6 +623,7 @@ async function fetchData() {
     } catch (e) {
         return null;
     }
+
 }
 
 function normalizeEvents(rawData) {
@@ -598,14 +632,18 @@ function normalizeEvents(rawData) {
     if (rawData.length > 0 && !Array.isArray(rawData[0])) {
         return rawData
             .filter(item => item && item.date && item.name)
-            .map(item => ({
-                ...item,
-                date: normalizeDate(item.date),
-                time: normalizeTime(item.time),
-                unsure: normalizeUnsure(item.unsure),
-                row: item.row || item.id || null,
-                id: String(item.id || item.row || crypto.randomUUID())
-            }))
+            .map(item => {
+                const parsed = parseUnsureFromName(item.name);
+                return {
+                    ...item,
+                    date: normalizeDate(item.date),
+                    name: parsed.name,
+                    time: normalizeTime(item.time),
+                    unsure: normalizeUnsure(item.unsure) || parsed.unsure,
+                    row: item.row || item.id || null,
+                    id: String(item.id || item.row || crypto.randomUUID())
+                };
+            })
             .map(withFingerprint)
             .filter(item => item.date);
     }
@@ -615,18 +653,29 @@ function normalizeEvents(rawData) {
         .filter(({ row }) => Array.isArray(row) && row.length >= 4)
         .map(({ row, sourceRow }) => {
             const [date, name, gym, time, unsure] = row;
+            const parsed = parseUnsureFromName(name);
             return {
                 row: sourceRow,
                 date: normalizeDate(date),
-                name: String(name || ''),
+                name: parsed.name,
                 gym: String(gym || ''),
                 time: normalizeTime(time),
-                unsure: normalizeUnsure(unsure),
+                unsure: normalizeUnsure(unsure) || parsed.unsure,
                 id: String(sourceRow)
             };
         })
         .map(withFingerprint)
         .filter(item => item.date && item.name);
+}
+
+function parseUnsureFromName(nameValue) {
+    const rawName = String(nameValue || '').trim();
+    if (!rawName) return { name: '', unsure: false };
+    if (!rawName.endsWith(UNSURE_MARK)) return { name: rawName, unsure: false };
+    return {
+        name: rawName.slice(0, -UNSURE_MARK.length).trim(),
+        unsure: true
+    };
 }
 
 function withFingerprint(item) {
@@ -704,20 +753,24 @@ function formatTimeForUtcPlus3(dateObj) {
     return `${hours}:${minutes}`;
 }
 
-function renderGymIcons(dayEvents) {
+function renderGymIcons(dayEvents, dateStr) {
     const uniqueGyms = [...new Set(dayEvents.map(item => item.gym))].slice(0, 4);
+    const previousGyms = previousCalendarGymsByDate[dateStr] || new Set();
     return `<div class="gym-icons">${uniqueGyms.map(gym => {
         const meta = gymMeta[gym];
         if (!meta || !meta.image) {
-            return `<span class="gym-icon" title="${escapeHTML(gym)}"></span>`;
+            const isNew = !previousGyms.has(gym) ? " is-new" : "";
+            return `<span class="gym-icon${isNew}" title="${escapeHTML(gym)}"></span>`;
         }
 
-        return `<span class="gym-icon" title="${escapeHTML(gym)}"><img src="${encodeURI(meta.image)}" alt="${escapeHTML(gym)}"></span>`;
+        const isNew = !previousGyms.has(gym) ? " is-new" : "";
+        return `<span class="gym-icon${isNew}" title="${escapeHTML(gym)}"><img src="${encodeURI(meta.image)}" alt="${escapeHTML(gym)}"></span>`;
     }).join('')}</div>`;
 }
 
 function renderCalendar() {
     const calendar = document.getElementById('calendar');
+    const nextCalendarGymsByDate = {};
     calendar.innerHTML = '';
 
     document.getElementById('monthTitle').innerText =
@@ -738,6 +791,7 @@ function renderCalendar() {
     for (let d=1; d<=daysInMonth; d++) {
         const dateStr = currentMonth.date(d).format('YYYY-MM-DD');
         const dayEvents = events.filter(e => e.date === dateStr && !e.unsure);
+        nextCalendarGymsByDate[dateStr] = new Set([...new Set(dayEvents.map(item => item.gym))].slice(0, 4));
 
         const isToday = dayjs().format('YYYY-MM-DD') === dateStr;
 
@@ -745,10 +799,13 @@ function renderCalendar() {
         <div class="day ${isToday?'today':''} ${dayEvents.length?'has-events':''}"
             onpointerdown="openModal('${dateStr}')">
             <div>${d}</div>
-            ${dayEvents.length ? renderGymIcons(dayEvents) : '<div></div>'}
+            ${dayEvents.length ? renderGymIcons(dayEvents, dateStr) : '<div></div>'}
             <div class="count">${dayEvents.length ? dayEvents.length + ' 👥' : ''}</div>
         </div>`;
     }
+
+    previousCalendarGymsByDate = nextCalendarGymsByDate;
+
 }
 
 function openModal(date) {
@@ -761,13 +818,21 @@ function openModal(date) {
     const unsureEvents = dayEvents.filter(e => e.unsure);
     const orderedEvents = [...sureEvents, ...unsureEvents];
 
+    const previousModalKeys = modalEventKeysByDate[date] || new Set();
+    const nextModalKeys = new Set();
+
     document.getElementById('visitsList').innerHTML =
         orderedEvents.length
-        ? orderedEvents.map(e =>
-            `<div class="visit-item ${e.unsure ? 'uncertain' : ''}"><div class="visit-text"><b>${escapeHTML(e.name)}${e.unsure ? ' (?)' : ''}</b> – ${escapeHTML(e.gym)}${e.time ? ` (${escapeHTML(e.time)})` : ''}</div>
-                <button class="delete-btn" onclick="deleteVisit('${escapeHTML(e.id)}')">Удалить</button></div>`
-          ).join('')
+        ? orderedEvents.map(e => {
+            const eventKey = `${e.fingerprint}|${e.row || e.id || ''}`;
+            nextModalKeys.add(eventKey);
+            const isNew = previousModalKeys.has(eventKey) ? '' : ' is-new';
+            return `<div class="visit-item${isNew} ${e.unsure ? 'uncertain' : ''}"><div class="visit-text"><b>${escapeHTML(e.name)}${e.unsure ? ' (?)' : ''}</b> – ${escapeHTML(e.gym)}${e.time ? ` (${escapeHTML(e.time)})` : ''}</div>
+                <button class="delete-btn" onclick="deleteVisit('${escapeHTML(e.id)}')">Удалить</button></div>`;
+          }).join('')
         : 'Пока никто не записался';
+
+    modalEventKeysByDate[date] = nextModalKeys;
 
     document.getElementById('overlay').classList.add('open');
     document.getElementById('modal').classList.add('open');
@@ -824,16 +889,16 @@ async function createVisitOnServer(newEvent) {
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
             body: JSON.stringify({
                 date: newEvent.date,
-                name: newEvent.name,
+                name: newEvent.unsure ? `${newEvent.name}${UNSURE_MARK}` : newEvent.name,
                 gym: newEvent.gym,
-                time: newEvent.time,
-                unsure: newEvent.unsure
+                time: newEvent.time
             })
         });
         return res.ok;
     } catch {
         return false;
     }
+
 }
 
 async function deleteVisit(eventId) {
@@ -863,6 +928,7 @@ async function deleteVisit(eventId) {
     } catch {
         // локальная запись уже удалена, восстановление не требуется
     }
+
 }
 
 function persistEvents() {
@@ -883,6 +949,7 @@ function loadCachedEvents() {
     } catch {
         return false;
     }
+
 }
 
 async function initializeCalendar() {
@@ -911,6 +978,7 @@ function applyServerSnapshot(serverEvents) {
     if (document.getElementById('modal').classList.contains('open')) {
         openModal(selectedDate);
     }
+
 }
 
 function mergeServerWithOptimisticEvents(serverEvents, currentEvents) {
