@@ -1,8 +1,9 @@
-function doGet() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const data = sheet.getDataRange().getValues();
+function getActiveSheet() {
+  return SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+}
 
-  const events = data
+function mapSheetRowsToEvents(rows) {
+  return rows
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => Array.isArray(row) && row.length >= 4)
     .map(({ row, index }) => ({
@@ -10,35 +11,42 @@ function doGet() {
       date: row[0],
       name: row[1],
       gym: row[2],
-      time: row[3]
+      time: row[3],
+      unsure: row[4]
     }))
     .filter(item => item.date && item.name);
+}
 
+function jsonResponse(payload) {
   return ContentService
-    .createTextOutput(JSON.stringify(events))
+    .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet() {
+  const rows = getActiveSheet().getDataRange().getValues();
+  return jsonResponse(mapSheetRowsToEvents(rows));
+}
+
+function deleteRowIfValid(sheet, rowNumber) {
+  if (Number.isNaN(rowNumber) || rowNumber <= 0 || rowNumber > sheet.getLastRow()) {
+    return false;
+  }
+
+  sheet.deleteRow(rowNumber);
+  return true;
 }
 
 function doPost(e) {
   const params = JSON.parse((e.postData && e.postData.contents) || '{}');
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const sheet = getActiveSheet();
 
   if (params.action === 'delete' && params.row) {
-    const rowNumber = Number(params.row);
-    if (!Number.isNaN(rowNumber) && rowNumber > 0 && rowNumber <= sheet.getLastRow()) {
-      sheet.deleteRow(rowNumber);
-      return ContentService
-        .createTextOutput(JSON.stringify({ ok: true }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: 'Invalid row' }))
-      .setMimeType(ContentService.MimeType.JSON);
+    const deleted = deleteRowIfValid(sheet, Number(params.row));
+    if (deleted) return jsonResponse({ ok: true });
+    return jsonResponse({ ok: false, error: 'Invalid row' });
   }
 
-  sheet.appendRow([params.date, params.name, params.gym, params.time]);
-  return ContentService
-    .createTextOutput(JSON.stringify({ ok: true }))
-    .setMimeType(ContentService.MimeType.JSON);
+  sheet.appendRow([params.date, params.name, params.gym, params.time, !!params.unsure]);
+  return jsonResponse({ ok: true });
 }
