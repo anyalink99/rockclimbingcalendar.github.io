@@ -271,7 +271,11 @@ button {
 }
 
 .visit-item.uncertain {
-    filter: opacity(85%);
+    filter: none;
+}
+
+.visit-name.uncertain {
+    opacity: 0.85;
 }
 
 .delete-btn {
@@ -329,17 +333,20 @@ button {
     background: #2a2a2a;
     display: inline-grid;
     place-items: center;
+    position: relative;
     cursor: pointer;
     transition: border-color 0.14s ease, background-color 0.14s ease, transform 0.14s ease;
 }
 
 .uncertain-checkbox::before {
-    content: '';
-    width: 9px;
-    height: 5px;
-    border-left: 2px solid #121212;
-    border-bottom: 2px solid #121212;
-    transform: rotate(-45deg) scale(0);
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    font-size: 13px;
+    line-height: 1;
+    color: #121212;
+    transform: translate(-50%, -50%) scale(0);
     transform-origin: center;
     transition: transform 0.14s ease;
 }
@@ -354,7 +361,7 @@ button {
 }
 
 .uncertain-checkbox:checked::before {
-    transform: rotate(-45deg) scale(1);
+    transform: translate(-50%, -50%) scale(1);
 }
 
 .uncertain-checkbox:active {
@@ -860,13 +867,16 @@ function openModal(date) {
     const previousModalKeys = modalEventKeysByDate[date] || new Set();
     const nextModalKeys = new Set();
 
+    const fingerprintCounts = {};
     document.getElementById('visitsList').innerHTML =
         orderedEvents.length
         ? orderedEvents.map(e => {
-            const eventKey = `${e.fingerprint}|${e.row || e.id || ''}`;
+            const sameFingerprintCount = (fingerprintCounts[e.fingerprint] || 0) + 1;
+            fingerprintCounts[e.fingerprint] = sameFingerprintCount;
+            const eventKey = `${e.fingerprint}|${sameFingerprintCount}`;
             nextModalKeys.add(eventKey);
             const isNew = previousModalKeys.has(eventKey) ? '' : ' is-new';
-            return `<div class="visit-item${isNew} ${e.unsure ? 'uncertain' : ''}"><div class="visit-text"><b>${escapeHTML(e.name)}${e.unsure ? ' (?)' : ''}</b> – ${escapeHTML(e.gym)}${e.time ? ` (${escapeHTML(e.time)})` : ''}</div>
+            return `<div class="visit-item${isNew} ${e.unsure ? 'uncertain' : ''}"><div class="visit-text"><b class="visit-name${e.unsure ? ' uncertain' : ''}">${escapeHTML(e.name)}${e.unsure ? ' (?)' : ''}</b> – ${escapeHTML(e.gym)}${e.time ? ` (${escapeHTML(e.time)})` : ''}</div>
                 <button class="delete-btn" onclick="deleteVisit('${escapeHTML(e.id)}')">Удалить</button></div>`;
           }).join('')
         : 'Пока никто не записался';
