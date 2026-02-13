@@ -371,10 +371,11 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbywsHJJz9FzGV3J3G_02MR1
 
 let currentMonth = dayjs();
 let events = [];
+let deletionShadows = [];
 let selectedDate = '';
 const EVENTS_CACHE_KEY = 'climbEventsCache';
 const SYNC_INTERVAL_MS = 10_000;
-const OPTIMISTIC_SHADOW_MIN_MS = 5_000;
+const SHADOW_TTL_MS = 5_000;
 const UTC_PLUS_3_OFFSET_MINUTES = 3 * 60;
 
 const gymMeta = {
@@ -469,6 +470,7 @@ function renderCustomSelect({ uiId, inputId, options, defaultValue, placeholder 
         if (!isOpen) {
             container.classList.add('open');
             trigger.setAttribute('aria-expanded', 'true');
+            scrollActiveOptionIntoView(container);
         }
     });
 
@@ -489,6 +491,17 @@ function closeAllCustomSelects() {
         const trigger = select.querySelector('[data-role="trigger"]');
         if (trigger) trigger.setAttribute('aria-expanded', 'false');
     });
+}
+
+function scrollActiveOptionIntoView(container) {
+    const menu = container.querySelector('[data-role="menu"]');
+    const activeOption = container.querySelector('.custom-select-option.active');
+    if (!menu || !activeOption) return;
+
+    const optionTop = activeOption.offsetTop;
+    const optionHeight = activeOption.offsetHeight;
+    const targetScroll = optionTop - (menu.clientHeight / 2) + (optionHeight / 2);
+    menu.scrollTop = Math.max(0, targetScroll);
 }
 
 document.addEventListener('click', (event) => {
@@ -742,6 +755,11 @@ async function deleteVisit(eventId) {
     if (!target) return;
 
     events = events.filter(event => event.id !== eventId);
+    deletionShadows.push({
+        fingerprint: target.fingerprint,
+        createdAt: Date.now()
+    });
+    pruneDeletionShadows();
     persistEvents();
     renderCalendar();
     openModal(selectedDate);
@@ -763,6 +781,10 @@ async function deleteVisit(eventId) {
 
 function persistEvents() {
     localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(events));
+}
+
+function pruneDeletionShadows(now = Date.now()) {
+    deletionShadows = deletionShadows.filter(item => now - item.createdAt < SHADOW_TTL_MS);
 }
 
 function loadCachedEvents() {
@@ -807,14 +829,18 @@ function applyServerSnapshot(serverEvents) {
 
 function mergeServerWithOptimisticEvents(serverEvents, currentEvents) {
     const now = Date.now();
+    pruneDeletionShadows(now);
+
+    const blockedFingerprints = new Set(deletionShadows.map(item => item.fingerprint));
+    const filteredServerEvents = serverEvents.filter(event => !blockedFingerprints.has(event.fingerprint));
     const serverFingerprints = new Set(serverEvents.map(event => event.fingerprint));
     const optimisticEvents = currentEvents.filter(event => {
         if (!event.pending || !event.optimisticCreatedAt) return false;
         if (serverFingerprints.has(event.fingerprint)) return false;
-        return now - event.optimisticCreatedAt < OPTIMISTIC_SHADOW_MIN_MS;
+        return now - event.optimisticCreatedAt < SHADOW_TTL_MS;
     });
 
-    return [...serverEvents, ...optimisticEvents];
+    return [...filteredServerEvents, ...optimisticEvents];
 }
 
 async function syncChanges() {
