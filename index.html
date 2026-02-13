@@ -239,6 +239,89 @@ button {
     color: var(--success);
     font-size: 0.85em;
 }
+
+#modal h3 {
+    margin: 0 0 10px;
+}
+
+#visitsList {
+    margin-bottom: 10px;
+}
+
+#modal hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 10px 0 12px;
+}
+
+.modal-controls {
+    display: grid;
+    gap: 10px;
+}
+
+#submitVisitButton {
+    margin-top: 0;
+}
+
+.custom-select {
+    position: relative;
+}
+
+.custom-select-trigger {
+    width: 100%;
+    background: #2d2d2d;
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 10px 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 500;
+}
+
+.custom-select-trigger:hover {
+    border-color: var(--accent);
+}
+
+.custom-select-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 6px);
+    background: #242424;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-height: 210px;
+    overflow-y: auto;
+    display: none;
+    z-index: 12;
+    padding: 4px;
+}
+
+.custom-select.open .custom-select-menu {
+    display: block;
+}
+
+.custom-select-option {
+    width: 100%;
+    background: transparent;
+    color: #fff;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-weight: 400;
+}
+
+.custom-select-option:hover,
+.custom-select-option.active {
+    background: rgba(187, 134, 252, 0.2);
+}
+
+.custom-select-arrow {
+    opacity: 0.8;
+    font-size: 0.85em;
+}
 </style>
 </head>
 
@@ -271,21 +354,13 @@ button {
 <h3 id="modalDateTitle"></h3>
 <div id="visitsList"></div>
 <hr>
-<select id="gymSelect">
-<option>Bigwall Динамо</option>
-<option>Bigwall Гавань</option>
-<option>Bigwall Ривьера</option>
-<option>ClimbLab Бутырская</option>
-<option>ClimbLab Аминьевская</option>
-<option>Tengu's Мичуринский</option>
-<option>Tengu's Южная</option>
-<option>Limestone</option>
-<option>Rockzona</option>
-<option>Tokyo</option>
-<option>ЦСКА</option>
-</select>
-<select id="visitTime"></select>
-<button onclick="submitVisit()">Записаться</button>
+<div class="modal-controls">
+<div class="custom-select" id="gymSelectUi"></div>
+<input type="hidden" id="gymSelect">
+<div class="custom-select" id="visitTimeUi"></div>
+<input type="hidden" id="visitTime">
+<button id="submitVisitButton" onclick="submitVisit()">Записаться</button>
+</div>
 </div>
 
 <script>
@@ -299,27 +374,42 @@ let events = [];
 let selectedDate = '';
 const EVENTS_CACHE_KEY = 'climbEventsCache';
 const SYNC_INTERVAL_MS = 10_000;
+const OPTIMISTIC_SHADOW_MIN_MS = 5_000;
 const UTC_PLUS_3_OFFSET_MINUTES = 3 * 60;
 
 const gymMeta = {
-    'Bigwall Динамо': { image: 'bigwall.png' },
-    'Bigwall Гавань': { image: 'bigwall.png' },
-    'Bigwall Ривьера': { image: 'bigwall.png' },
-    'ClimbLab Бутырская': { image: 'climblab.jpg' },
-    'ClimbLab Аминьевская': { image: 'climblab.jpg' },
-    "Tengu's Мичуринский": { image: 'tengus.png' },
-    "Tengu's Южная": { image: 'tengus.png' },
-    'Limestone': { image: 'limestone.png' },
-    'Rockzona': { image: 'rockzona.png' },
-    'Tokyo': { image: 'tokyo.png' },
-    'ЦСКА': { image: 'cska.png' }
+    'Bigwall Динамо': { image: 'icons/bigwall.png' },
+    'Bigwall Гавань': { image: 'icons/bigwall.png' },
+    'Bigwall Ривьера': { image: 'icons/bigwall.png' },
+    'ClimbLab Бутырская': { image: 'icons/climblab.jpg' },
+    'ClimbLab Аминьевская': { image: 'icons/climblab.jpg' },
+    "Tengu's Мичуринский": { image: 'icons/tengus.png' },
+    "Tengu's Южная": { image: 'icons/tengus.png' },
+    'Limestone': { image: 'icons/limestone.png' },
+    'Rockzona': { image: 'icons/rockzona.png' },
+    'Tokyo': { image: 'icons/tokyo.png' },
+    'ЦСКА': { image: 'icons/cska.png' }
 };
+
+const gymOptions = [
+    'Bigwall Динамо',
+    'Bigwall Гавань',
+    'Bigwall Ривьера',
+    'ClimbLab Бутырская',
+    'ClimbLab Аминьевская',
+    "Tengu's Мичуринский",
+    "Tengu's Южная",
+    'Limestone',
+    'Rockzona',
+    'Tokyo',
+    'ЦСКА'
+];
 
 document.getElementById('userName').value = localStorage.getItem('climberName') || '';
 document.getElementById('userName').addEventListener('input', (e) => {
     localStorage.setItem('climberName', e.target.value.trim());
 });
-populateTimeOptions();
+initializeModalControls();
 
 function escapeHTML(str) {
     return str.replace(/[&<>"']/g, m => ({
@@ -327,18 +417,85 @@ function escapeHTML(str) {
     }[m]));
 }
 
-function populateTimeOptions() {
-    const select = document.getElementById('visitTime');
-    const options = [];
+function initializeModalControls() {
+    renderCustomSelect({
+        uiId: 'gymSelectUi',
+        inputId: 'gymSelect',
+        options: gymOptions,
+        defaultValue: gymOptions[0],
+        placeholder: 'Выбери скалодром'
+    });
+
+    const timeOptions = [];
     for (let hour = 0; hour < 24; hour++) {
         for (let minute = 0; minute < 60; minute += 15) {
-            const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-            options.push(`<option value="${value}">${value}</option>`);
+            timeOptions.push(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
         }
     }
-    select.innerHTML = options.join('');
-    select.value = '19:00';
+
+    renderCustomSelect({
+        uiId: 'visitTimeUi',
+        inputId: 'visitTime',
+        options: timeOptions,
+        defaultValue: '19:00',
+        placeholder: 'Выбери время'
+    });
 }
+
+function renderCustomSelect({ uiId, inputId, options, defaultValue, placeholder }) {
+    const container = document.getElementById(uiId);
+    const input = document.getElementById(inputId);
+    input.value = defaultValue;
+
+    container.innerHTML = `
+        <button type="button" class="custom-select-trigger" data-role="trigger" aria-expanded="false">
+            <span class="custom-select-value">${escapeHTML(defaultValue || placeholder)}</span>
+            <span class="custom-select-arrow">▾</span>
+        </button>
+        <div class="custom-select-menu" data-role="menu"></div>
+    `;
+
+    const trigger = container.querySelector('[data-role="trigger"]');
+    const valueNode = container.querySelector('.custom-select-value');
+    const menu = container.querySelector('[data-role="menu"]');
+
+    menu.innerHTML = options.map(option => `
+        <button type="button" class="custom-select-option ${option === defaultValue ? 'active' : ''}" data-value="${escapeHTML(option)}">${escapeHTML(option)}</button>
+    `).join('');
+
+    trigger.addEventListener('click', () => {
+        const isOpen = container.classList.contains('open');
+        closeAllCustomSelects();
+        if (!isOpen) {
+            container.classList.add('open');
+            trigger.setAttribute('aria-expanded', 'true');
+        }
+    });
+
+    menu.addEventListener('click', (event) => {
+        const optionButton = event.target.closest('.custom-select-option');
+        if (!optionButton) return;
+        const value = optionButton.getAttribute('data-value');
+        input.value = value;
+        valueNode.textContent = value;
+        menu.querySelectorAll('.custom-select-option').forEach(item => item.classList.toggle('active', item === optionButton));
+        closeAllCustomSelects();
+    });
+}
+
+function closeAllCustomSelects() {
+    document.querySelectorAll('.custom-select.open').forEach(select => {
+        select.classList.remove('open');
+        const trigger = select.querySelector('[data-role="trigger"]');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    });
+}
+
+document.addEventListener('click', (event) => {
+    if (!event.target.closest('.custom-select')) {
+        closeAllCustomSelects();
+    }
+});
 
 async function fetchData() {
     try {
@@ -540,6 +697,7 @@ async function submitVisit() {
         gym: document.getElementById('gymSelect').value,
         time: document.getElementById('visitTime').value,
         pending: true,
+        optimisticCreatedAt: Date.now(),
         row: null
     });
 
@@ -632,18 +790,31 @@ async function initializeCalendar() {
 }
 
 function applyServerSnapshot(serverEvents) {
+    const mergedEvents = mergeServerWithOptimisticEvents(serverEvents, events);
     const serializedCurrent = JSON.stringify(events);
-    const serializedServer = JSON.stringify(serverEvents);
-    if (serializedCurrent === serializedServer) {
+    const serializedMerged = JSON.stringify(mergedEvents);
+    if (serializedCurrent === serializedMerged) {
         return;
     }
 
-    events = serverEvents;
+    events = mergedEvents;
     persistEvents();
     renderCalendar();
     if (document.getElementById('modal').classList.contains('open')) {
         openModal(selectedDate);
     }
+}
+
+function mergeServerWithOptimisticEvents(serverEvents, currentEvents) {
+    const now = Date.now();
+    const serverFingerprints = new Set(serverEvents.map(event => event.fingerprint));
+    const optimisticEvents = currentEvents.filter(event => {
+        if (!event.pending || !event.optimisticCreatedAt) return false;
+        if (serverFingerprints.has(event.fingerprint)) return false;
+        return now - event.optimisticCreatedAt < OPTIMISTIC_SHADOW_MIN_MS;
+    });
+
+    return [...serverEvents, ...optimisticEvents];
 }
 
 async function syncChanges() {
