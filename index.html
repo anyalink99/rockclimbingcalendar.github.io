@@ -25,15 +25,15 @@ body {
     margin: 0;
     display: flex;
     justify-content: center;
+    min-height: 100vh;
 }
 
 .container {
-    width: 95%;
-    max-width: 800px;
-    padding: 20px;
+    width: min(100%, 980px);
+    padding: 12px;
 }
 
-header { text-align: center; margin-bottom: 20px; }
+header { text-align: center; margin-bottom: 12px; }
 
 .profile-card {
     background: var(--card-bg);
@@ -70,9 +70,9 @@ button {
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
-    margin-top: 10px;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    margin-top: 8px;
 }
 
 .weekday {
@@ -82,7 +82,7 @@ button {
 }
 
 .day {
-    aspect-ratio: 1/1;
+    min-height: clamp(64px, 11vw, 92px);
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -145,10 +145,6 @@ button {
 <body>
 
 <div class="container">
-<header>
-<h1>🧗 ClimbSync</h1>
-</header>
-
 <div class="profile-card">
 <h3>Твой профиль</h3>
 <input type="text" id="userName" placeholder="Имя">
@@ -216,13 +212,33 @@ async function fetchData() {
     try {
         document.getElementById('loader').style.display = 'block';
         const res = await fetch(API_URL);
-        events = await res.json();
+        const rawData = await res.json();
+        events = normalizeEvents(rawData);
         renderCalendar();
     } catch (e) {
         alert('Ошибка загрузки данных');
     } finally {
         document.getElementById('loader').style.display = 'none';
     }
+}
+
+function normalizeEvents(rawData) {
+    if (!Array.isArray(rawData)) return [];
+
+    if (rawData.length > 0 && !Array.isArray(rawData[0])) {
+        return rawData.filter(item => item && item.date && item.name);
+    }
+
+    const rows = rawData
+        .filter(row => Array.isArray(row) && row.length >= 4)
+        .filter(([date]) => dayjs(date).isValid());
+
+    return rows.map(([date, name, gym, time]) => ({
+        date: dayjs(date).format('YYYY-MM-DD'),
+        name: String(name || ''),
+        gym: String(gym || ''),
+        time: String(time || '')
+    }));
 }
 
 function renderCalendar() {
