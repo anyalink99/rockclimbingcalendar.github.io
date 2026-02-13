@@ -7,6 +7,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/isoWeek.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/locale/ru.js"></script>
 
 <style>
 :root {
@@ -62,6 +63,30 @@ button {
     font-weight: bold;
 }
 
+.icon-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #2a2a2a;
+    color: #fff;
+    border: 1px solid var(--border);
+    padding: 0;
+    display: grid;
+    place-items: center;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.icon-button:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent);
+    background: #343434;
+}
+
+.icon-button svg {
+    width: 18px;
+    height: 18px;
+}
+
 .calendar-header {
     display: flex;
     justify-content: space-between;
@@ -73,6 +98,24 @@ button {
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 4px;
     margin-top: 8px;
+}
+
+.calendar-wrap {
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.calendar-wrap.animating {
+    opacity: 0;
+}
+
+.calendar-wrap.slide-left.animating {
+    transform: translateX(-10px);
+}
+
+.calendar-wrap.slide-right.animating {
+    transform: translateX(10px);
 }
 
 .weekday {
@@ -92,6 +135,24 @@ button {
     flex-direction: column;
     justify-content: space-between;
     transition: 0.2s;
+}
+
+.gym-icons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.gym-icon {
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    font-size: 0.52em;
+    line-height: 17px;
+    text-align: center;
+    font-weight: 700;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.15);
 }
 
 .day:hover { border-color: var(--accent); }
@@ -115,7 +176,6 @@ button {
 }
 
 #modal, .overlay {
-    display: none;
     position: fixed;
 }
 
@@ -123,6 +183,9 @@ button {
     top: 0; left: 0;
     width: 100%; height: 100%;
     background: rgba(0,0,0,0.7);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
 }
 
 #modal {
@@ -133,6 +196,37 @@ button {
     border-radius: 15px;
     width: 300px;
     z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -45%) scale(0.97);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#modal.open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.visit-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 0.94em;
+}
+
+.delete-btn {
+    background: #b12e2e;
+    color: #fff;
+    padding: 5px 8px;
+    font-size: 0.75em;
 }
 
 .success-message {
@@ -152,12 +246,18 @@ button {
 </div>
 
 <div class="calendar-header">
-<button onclick="changeMonth(-1)">⬅️</button>
+<button class="icon-button" onclick="changeMonth(-1)" aria-label="Предыдущий месяц">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+</button>
 <h2 id="monthTitle"></h2>
-<button onclick="changeMonth(1)">➡️</button>
+<button class="icon-button" onclick="changeMonth(1)" aria-label="Следующий месяц">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+</button>
 </div>
 
-<div id="calendar" class="grid"></div>
+<div id="calendarWrap" class="calendar-wrap">
+    <div id="calendar" class="grid"></div>
+</div>
 <div id="loader" class="loader">Загрузка...</div>
 
 </div>
@@ -188,12 +288,27 @@ button {
 
 <script>
 dayjs.extend(window.dayjs_plugin_isoWeek);
+dayjs.locale('ru');
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbywsHJJz9FzGV3J3G_02MR1UAyTGdT6ldqVto82zJbSFF4C2snqAZWAH2q_kpaFbp0C/exec';
 
 let currentMonth = dayjs();
 let events = [];
 let selectedDate = '';
+
+const gymMeta = {
+    'Bigwall Динамо': { icon: 'BW', color: '#2d4f9e' },
+    'Bigwall Гавань': { icon: 'BW', color: '#2d4f9e' },
+    'Bigwall Ривьера': { icon: 'BW', color: '#2d4f9e' },
+    'ClimbLab Бутырская': { icon: 'CL', color: '#111111' },
+    'ClimbLab Аминьевская': { icon: 'CL', color: '#111111' },
+    "Tengu's Мичуринский": { icon: '天', color: '#c82424' },
+    "Tengu's Южная": { icon: '天', color: '#c82424' },
+    'Limestone': { icon: 'LS', color: '#d7b221' },
+    'Rockzona': { icon: 'RZ', color: '#4f86ff' },
+    'Tokyo': { icon: 'TK', color: '#2fa88e' },
+    'ЦСКА': { icon: '⛰', color: '#4f9633' }
+};
 
 document.getElementById('userName').value = localStorage.getItem('climberName') || '';
 
@@ -226,19 +341,56 @@ function normalizeEvents(rawData) {
     if (!Array.isArray(rawData)) return [];
 
     if (rawData.length > 0 && !Array.isArray(rawData[0])) {
-        return rawData.filter(item => item && item.date && item.name);
+        return rawData
+            .filter(item => item && item.date && item.name)
+            .map(item => ({
+                ...item,
+                date: normalizeDate(item.date),
+                time: normalizeTime(item.time),
+                row: item.row || item.id || null
+            }))
+            .filter(item => item.date);
     }
 
-    const rows = rawData
-        .filter(row => Array.isArray(row) && row.length >= 4)
-        .filter(([date]) => dayjs(date).isValid());
+    return rawData
+        .map((row, index) => ({ row, sourceRow: index + 1 }))
+        .filter(({ row }) => Array.isArray(row) && row.length >= 4)
+        .map(({ row, sourceRow }) => {
+            const [date, name, gym, time] = row;
+            return {
+                row: sourceRow,
+                date: normalizeDate(date),
+                name: String(name || ''),
+                gym: String(gym || ''),
+                time: normalizeTime(time)
+            };
+        })
+        .filter(item => item.date && item.name);
+}
 
-    return rows.map(([date, name, gym, time]) => ({
-        date: dayjs(date).format('YYYY-MM-DD'),
-        name: String(name || ''),
-        gym: String(gym || ''),
-        time: String(time || '')
-    }));
+function normalizeDate(input) {
+    if (!input) return '';
+    const parsed = dayjs(input);
+    return parsed.isValid() ? parsed.format('YYYY-MM-DD') : '';
+}
+
+function normalizeTime(input) {
+    if (input == null || input === '') return '';
+    const raw = String(input).trim();
+    if (/^\d{2}:\d{2}$/.test(raw)) return raw;
+    const parsed = dayjs(input);
+    if (parsed.isValid() && parsed.year() > 1900) return parsed.format('HH:mm');
+    const isoTime = raw.match(/T(\d{2}:\d{2})/);
+    if (isoTime) return isoTime[1];
+    return raw;
+}
+
+function renderGymIcons(dayEvents) {
+    const uniqueGyms = [...new Set(dayEvents.map(item => item.gym))].slice(0, 4);
+    return `<div class="gym-icons">${uniqueGyms.map(gym => {
+        const meta = gymMeta[gym] || { icon: '•', color: '#696969' };
+        return `<span class="gym-icon" title="${escapeHTML(gym)}" style="background:${meta.color}">${escapeHTML(meta.icon)}</span>`;
+    }).join('')}</div>`;
 }
 
 function renderCalendar() {
@@ -246,7 +398,7 @@ function renderCalendar() {
     calendar.innerHTML = '';
 
     document.getElementById('monthTitle').innerText =
-        currentMonth.format('MMMM YYYY');
+        currentMonth.format('MMMM YYYY').replace(/^./, m => m.toUpperCase());
 
     const weekdays = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
     weekdays.forEach(d => {
@@ -270,6 +422,7 @@ function renderCalendar() {
         <div class="day ${isToday?'today':''} ${dayEvents.length?'has-events':''}"
             onclick="openModal('${dateStr}')">
             <div>${d}</div>
+            ${dayEvents.length ? renderGymIcons(dayEvents) : '<div></div>'}
             <div class="count">${dayEvents.length ? dayEvents.length + ' 👥' : ''}</div>
         </div>`;
     }
@@ -285,17 +438,18 @@ function openModal(date) {
     document.getElementById('visitsList').innerHTML =
         dayEvents.length
         ? dayEvents.map(e =>
-            `<div><b>${escapeHTML(e.name)}</b> – ${escapeHTML(e.gym)} (${escapeHTML(e.time)})</div>`
+            `<div class="visit-item"><div><b>${escapeHTML(e.name)}</b> – ${escapeHTML(e.gym)}${e.time ? ` (${escapeHTML(e.time)})` : ''}</div>
+                <button class="delete-btn" onclick="deleteVisit(${Number(e.row) || 'null'})">Удалить</button></div>`
           ).join('')
         : 'Пока никто не записался';
 
-    document.getElementById('overlay').style.display = 'block';
-    document.getElementById('modal').style.display = 'block';
+    document.getElementById('overlay').classList.add('open');
+    document.getElementById('modal').classList.add('open');
 }
 
 function closeModal() {
-    document.getElementById('overlay').style.display = 'none';
-    document.getElementById('modal').style.display = 'none';
+    document.getElementById('overlay').classList.remove('open');
+    document.getElementById('modal').classList.remove('open');
     document.getElementById('submitStatus').innerHTML = '';
 }
 
@@ -320,7 +474,7 @@ async function submitVisit() {
     try {
         const res = await fetch(API_URL, {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
             body: JSON.stringify(newEvent)
         });
 
@@ -335,9 +489,37 @@ async function submitVisit() {
     }
 }
 
+async function deleteVisit(row) {
+    if (!row) return;
+    const status = document.getElementById('submitStatus');
+    status.innerHTML = 'Удаление...';
+    try {
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify({ action: 'delete', row })
+        });
+
+        if (!res.ok) throw new Error();
+
+        status.innerHTML = '<div class="success-message">Запись удалена ✅</div>';
+        await fetchData();
+        openModal(selectedDate);
+    } catch {
+        status.innerHTML = 'Ошибка удаления';
+    }
+}
+
 function changeMonth(step) {
+    const wrap = document.getElementById('calendarWrap');
+    wrap.classList.remove('slide-left', 'slide-right');
+    wrap.classList.add(step > 0 ? 'slide-left' : 'slide-right', 'animating');
+
     currentMonth = currentMonth.add(step, 'month');
-    renderCalendar();
+    setTimeout(() => {
+        renderCalendar();
+        wrap.classList.remove('animating');
+    }, 120);
 }
 
 fetchData();
