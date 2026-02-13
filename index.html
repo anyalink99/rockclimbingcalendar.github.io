@@ -18,6 +18,66 @@
     --border: #333;
     --success: #4caf50;
     --warning: #f5c542;
+    --input-bg: #2d2d2d;
+    --input-text: #ffffff;
+    --secondary-bg: #2a2a2a;
+    --overlay-bg: rgba(0,0,0,0.7);
+}
+
+:root[data-theme="grandmaster"] {
+    --bg: #241a12;
+    --card-bg: #302118;
+    --accent: #d7b16d;
+    --text: #f1e4d2;
+    --border: #6b4f35;
+    --success: #8fc28f;
+    --warning: #f0c778;
+    --input-bg: #3a291d;
+    --input-text: #f7ecdf;
+    --secondary-bg: #3a291d;
+    --overlay-bg: rgba(20, 12, 7, 0.72);
+}
+
+:root[data-theme="ivory"] {
+    --bg: #f5eee2;
+    --card-bg: #fffaf0;
+    --accent: #c88754;
+    --text: #4a3b2a;
+    --border: #dbcbb4;
+    --success: #5f9b6a;
+    --warning: #cf9852;
+    --input-bg: #fffdf8;
+    --input-text: #4a3b2a;
+    --secondary-bg: #f0e5d3;
+    --overlay-bg: rgba(58, 41, 24, 0.32);
+}
+
+:root[data-theme="forest"] {
+    --bg: #0f1f17;
+    --card-bg: #1a2d24;
+    --accent: #89c17d;
+    --text: #dbe9dc;
+    --border: #305140;
+    --success: #66d17c;
+    --warning: #e1c56a;
+    --input-bg: #223a2f;
+    --input-text: #e7f4e8;
+    --secondary-bg: #223a2f;
+    --overlay-bg: rgba(8, 16, 12, 0.74);
+}
+
+:root[data-theme="ocean"] {
+    --bg: #101c2e;
+    --card-bg: #17263d;
+    --accent: #70c2f5;
+    --text: #d6e8ff;
+    --border: #2d4668;
+    --success: #76d1a5;
+    --warning: #f1c46b;
+    --input-bg: #20314e;
+    --input-text: #e6f1ff;
+    --secondary-bg: #20314e;
+    --overlay-bg: rgba(7, 14, 23, 0.78);
 }
 
 body {
@@ -30,6 +90,7 @@ body {
     min-height: 100vh;
     user-select: none;
     -webkit-user-select: none;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 img {
@@ -61,9 +122,9 @@ header { text-align: center; margin-bottom: 12px; }
 input, select {
     user-select: text;
     -webkit-user-select: text;
-    background: #2d2d2d;
+    background: var(--input-bg);
     border: 1px solid var(--border);
-    color: white;
+    color: var(--input-text);
     padding: 8px;
     border-radius: 6px;
     margin: 5px 0;
@@ -84,8 +145,8 @@ button {
     width: 36px;
     height: 36px;
     border-radius: 10px;
-    background: #2a2a2a;
-    color: #fff;
+    background: var(--secondary-bg);
+    color: var(--input-text);
     border: 1px solid var(--border);
     padding: 0;
     display: grid;
@@ -96,7 +157,7 @@ button {
 .icon-button:hover {
     transform: translateY(-1px);
     border-color: var(--accent);
-    background: #343434;
+    background: color-mix(in srgb, var(--secondary-bg) 80%, var(--accent));
 }
 
 .icon-button svg {
@@ -184,7 +245,7 @@ button {
     border-radius: 50%;
     border: 1px solid rgba(255,255,255,0.15);
     overflow: hidden;
-    background: #2d2d2d;
+    background: var(--input-bg);
     display: inline-flex;
 }
 
@@ -225,7 +286,7 @@ button {
 .overlay {
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(0,0,0,0.7);
+    background: var(--overlay-bg);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.16s ease;
@@ -335,7 +396,7 @@ button {
     margin: 0;
     border-radius: 5px;
     border: 1px solid #5a5a5a;
-    background: #2a2a2a;
+    background: var(--secondary-bg);
     display: inline-grid;
     place-items: center;
     position: relative;
@@ -395,9 +456,9 @@ button {
 
 .custom-select-trigger {
     width: 100%;
-    background: #2d2d2d;
+    background: var(--input-bg);
     border: 1px solid var(--border);
-    color: #fff;
+    color: var(--input-text);
     padding: 11px 12px;
     border-radius: 8px;
     display: flex;
@@ -415,7 +476,7 @@ button {
     left: 0;
     right: 0;
     top: calc(100% + 6px);
-    background: #242424;
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     max-height: 210px;
@@ -447,7 +508,7 @@ button {
 .custom-select-option {
     width: 100%;
     background: transparent;
-    color: #fff;
+    color: var(--input-text);
     text-align: left;
     padding: 8px 10px;
     border-radius: 8px;
@@ -462,6 +523,44 @@ button {
 .custom-select-arrow {
     opacity: 0.8;
     font-size: 0.85em;
+}
+
+.theme-switcher {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    z-index: 20;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.25);
+}
+
+.theme-switcher label {
+    font-size: 0.85em;
+    opacity: 0.9;
+}
+
+.theme-switcher select {
+    margin: 0;
+    min-width: 174px;
+    padding: 6px 8px;
+}
+
+@media (max-width: 700px) {
+    .theme-switcher {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+    }
+
+    .theme-switcher select {
+        min-width: 0;
+    }
 }
 </style>
 </head>
@@ -487,6 +586,11 @@ button {
     <div id="calendar" class="grid"></div>
 </div>
 
+</div>
+
+<div class="theme-switcher">
+    <label for="themeSelect">Тема</label>
+    <select id="themeSelect" aria-label="Выбор цветовой темы"></select>
 </div>
 
 <div class="overlay" id="overlay"></div>
@@ -527,6 +631,7 @@ const state = {
     modalInteractionUnlockedAt: 0
 };
 const EVENTS_CACHE_KEY = 'climbEventsCache';
+const THEME_STORAGE_KEY = 'climbTheme';
 const SYNC_INTERVAL_MS = 10_000;
 const SHADOW_TTL_MS = 5_000;
 const UTC_PLUS_3_OFFSET_MINUTES = 3 * 60;
@@ -563,11 +668,21 @@ const gymOptions = [
 
 const overlayElement = document.getElementById('overlay');
 const modalElement = document.getElementById('modal');
+const themeSelectElement = document.getElementById('themeSelect');
+
+const themes = [
+    { value: 'midnight', label: 'Ночная классика' },
+    { value: 'grandmaster', label: 'Шахматный гроссмейстер' },
+    { value: 'ivory', label: 'Светлый беж' },
+    { value: 'forest', label: 'Лесной зал' },
+    { value: 'ocean', label: 'Океанский бриз' }
+];
 
 document.getElementById('userName').value = localStorage.getItem('climberName') || '';
 document.getElementById('userName').addEventListener('input', (e) => {
     localStorage.setItem('climberName', e.target.value.trim());
 });
+initializeThemeSwitcher();
 initializeModalControls();
 
 // ===== Utilities =====
@@ -579,6 +694,30 @@ function escapeHtml(str) {
 
 function setEvents(nextEvents) {
     state.events = nextEvents;
+}
+
+function applyTheme(themeValue) {
+    const isKnownTheme = themes.some(theme => theme.value === themeValue);
+    const activeTheme = isKnownTheme ? themeValue : 'midnight';
+    if (activeTheme === 'midnight') {
+        document.documentElement.removeAttribute('data-theme');
+    } else {
+        document.documentElement.setAttribute('data-theme', activeTheme);
+    }
+    themeSelectElement.value = activeTheme;
+    localStorage.setItem(THEME_STORAGE_KEY, activeTheme);
+}
+
+function initializeThemeSwitcher() {
+    themeSelectElement.innerHTML = themes.map(theme =>
+        `<option value="${theme.value}">${escapeHtml(theme.label)}</option>`
+    ).join('');
+
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'midnight';
+    applyTheme(storedTheme);
+    themeSelectElement.addEventListener('change', (event) => {
+        applyTheme(event.target.value);
+    });
 }
 
 function isModalOpen() {
