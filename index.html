@@ -27,6 +27,14 @@ body {
     display: flex;
     justify-content: center;
     min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+img {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
 }
 
 .container {
@@ -50,6 +58,8 @@ header { text-align: center; margin-bottom: 12px; }
 }
 
 input, select {
+    user-select: text;
+    -webkit-user-select: text;
     background: #2d2d2d;
     border: 1px solid var(--border);
     color: white;
@@ -246,8 +256,14 @@ button {
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    padding: 6px 0;
+    padding: 3px 0;
     font-size: 0.94em;
+}
+
+.visit-text,
+#modalDateTitle {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .visit-item.is-new {
@@ -277,7 +293,7 @@ button {
 #visitsList {
     margin-bottom: 10px;
     display: grid;
-    gap: 4px;
+    gap: 2px;
 }
 
 #modal hr {
@@ -288,7 +304,7 @@ button {
 
 .modal-controls {
     display: grid;
-    gap: 12px;
+    gap: 16px;
 }
 
 .uncertain-toggle {
@@ -319,11 +335,13 @@ button {
 
 .uncertain-checkbox::before {
     content: '';
-    color: #121212;
-    font-size: 12px;
-    line-height: 1;
-    transform: scale(0.7);
-    transition: transform 0.14s ease, color 0.14s ease;
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid #121212;
+    border-bottom: 2px solid #121212;
+    transform: rotate(-45deg) scale(0);
+    transform-origin: center;
+    transition: transform 0.14s ease;
 }
 
 .uncertain-checkbox:hover {
@@ -336,9 +354,7 @@ button {
 }
 
 .uncertain-checkbox:checked::before {
-    content: '✓';
-    color: #121212;
-    transform: scale(1);
+    transform: rotate(-45deg) scale(1);
 }
 
 .uncertain-checkbox:active {
@@ -591,6 +607,27 @@ function renderCustomSelect({ uiId, inputId, options, defaultValue, placeholder 
     });
 }
 
+function setCustomSelectValue(uiId, inputId, value) {
+    const container = document.getElementById(uiId);
+    const input = document.getElementById(inputId);
+    if (!container || !input || !value) return;
+
+    const valueNode = container.querySelector('.custom-select-value');
+    const options = container.querySelectorAll('.custom-select-option');
+
+    let matchedOption = null;
+    options.forEach(option => {
+        const isMatch = option.getAttribute('data-value') === value;
+        option.classList.toggle('active', isMatch);
+        if (isMatch) matchedOption = option;
+    });
+
+    if (!matchedOption) return;
+
+    input.value = value;
+    if (valueNode) valueNode.textContent = value;
+}
+
 function closeAllCustomSelects() {
     document.querySelectorAll('.custom-select.open').forEach(select => {
         select.classList.remove('open');
@@ -835,6 +872,14 @@ function openModal(date) {
         : 'Пока никто не записался';
 
     modalEventKeysByDate[date] = nextModalKeys;
+
+    const baseEvent = sureEvents[0] || unsureEvents[0] || null;
+    if (baseEvent) {
+        setCustomSelectValue('gymSelectUi', 'gymSelect', baseEvent.gym);
+        if (baseEvent.time) {
+            setCustomSelectValue('visitTimeUi', 'visitTime', baseEvent.time);
+        }
+    }
 
     document.getElementById('overlay').classList.add('open');
     document.getElementById('modal').classList.add('open');
