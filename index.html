@@ -44,6 +44,11 @@ header { text-align: center; margin-bottom: 12px; }
     border: 1px solid var(--border);
 }
 
+.profile-name-input {
+    font-size: 1.2rem;
+    padding: 12px;
+}
+
 input, select {
     background: #2d2d2d;
     border: 1px solid var(--border);
@@ -52,6 +57,7 @@ input, select {
     border-radius: 6px;
     margin: 5px 0;
     width: 100%;
+    box-sizing: border-box;
 }
 
 button {
@@ -147,12 +153,17 @@ button {
     width: 17px;
     height: 17px;
     border-radius: 50%;
-    font-size: 0.52em;
-    line-height: 17px;
-    text-align: center;
-    font-weight: 700;
-    color: #fff;
     border: 1px solid rgba(255,255,255,0.15);
+    overflow: hidden;
+    background: #2d2d2d;
+    display: inline-flex;
+}
+
+.gym-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
 .day:hover { border-color: var(--accent); }
@@ -168,11 +179,6 @@ button {
 .count {
     font-size: 0.75em;
     opacity: 0.8;
-}
-
-.loader {
-    text-align: center;
-    margin: 10px 0;
 }
 
 #modal, .overlay {
@@ -240,9 +246,7 @@ button {
 
 <div class="container">
 <div class="profile-card">
-<h3>Твой профиль</h3>
-<input type="text" id="userName" placeholder="Имя">
-<button onclick="saveProfile()">Сохранить</button>
+<input type="text" id="userName" class="profile-name-input" placeholder="Имя">
 </div>
 
 <div class="calendar-header">
@@ -258,7 +262,6 @@ button {
 <div id="calendarWrap" class="calendar-wrap">
     <div id="calendar" class="grid"></div>
 </div>
-<div id="loader" class="loader">Загрузка...</div>
 
 </div>
 
@@ -281,9 +284,8 @@ button {
 <option>Tokyo</option>
 <option>ЦСКА</option>
 </select>
-<input type="time" id="visitTime" value="19:00">
+<select id="visitTime"></select>
 <button onclick="submitVisit()">Записаться</button>
-<div id="submitStatus"></div>
 </div>
 
 <script>
@@ -295,22 +297,28 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbywsHJJz9FzGV3J3G_02MR1
 let currentMonth = dayjs();
 let events = [];
 let selectedDate = '';
+const EVENTS_CACHE_KEY = 'climbEventsCache';
+const SYNC_INTERVAL_MS = 10_000;
 
 const gymMeta = {
-    'Bigwall Динамо': { icon: 'BW', color: '#2d4f9e' },
-    'Bigwall Гавань': { icon: 'BW', color: '#2d4f9e' },
-    'Bigwall Ривьера': { icon: 'BW', color: '#2d4f9e' },
-    'ClimbLab Бутырская': { icon: 'CL', color: '#111111' },
-    'ClimbLab Аминьевская': { icon: 'CL', color: '#111111' },
-    "Tengu's Мичуринский": { icon: '天', color: '#c82424' },
-    "Tengu's Южная": { icon: '天', color: '#c82424' },
-    'Limestone': { icon: 'LS', color: '#d7b221' },
-    'Rockzona': { icon: 'RZ', color: '#4f86ff' },
-    'Tokyo': { icon: 'TK', color: '#2fa88e' },
-    'ЦСКА': { icon: '⛰', color: '#4f9633' }
+    'Bigwall Динамо': { image: 'bigwall.png' },
+    'Bigwall Гавань': { image: 'bigwall.png' },
+    'Bigwall Ривьера': { image: 'bigwall.png' },
+    'ClimbLab Бутырская': { image: 'climblab.jpg' },
+    'ClimbLab Аминьевская': { image: 'climblab.jpg' },
+    "Tengu's Мичуринский": { image: 'tengus.png' },
+    "Tengu's Южная": { image: 'tengus.png' },
+    'Limestone': { image: 'limestone.png' },
+    'Rockzona': { image: 'rockzona.png' },
+    'Tokyo': { image: 'tokyo.png' },
+    'ЦСКА': { image: 'cska.png' }
 };
 
 document.getElementById('userName').value = localStorage.getItem('climberName') || '';
+document.getElementById('userName').addEventListener('input', (e) => {
+    localStorage.setItem('climberName', e.target.value.trim());
+});
+populateTimeOptions();
 
 function escapeHTML(str) {
     return str.replace(/[&<>"']/g, m => ({
@@ -318,22 +326,26 @@ function escapeHTML(str) {
     }[m]));
 }
 
-function saveProfile() {
-    localStorage.setItem('climberName', document.getElementById('userName').value);
-    alert('Профиль сохранён');
+function populateTimeOptions() {
+    const select = document.getElementById('visitTime');
+    const options = [];
+    for (let hour = 0; hour < 24; hour++) {
+        for (let minute = 0; minute < 60; minute += 15) {
+            const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+            options.push(`<option value="${value}">${value}</option>`);
+        }
+    }
+    select.innerHTML = options.join('');
+    select.value = '19:00';
 }
 
 async function fetchData() {
     try {
-        document.getElementById('loader').style.display = 'block';
         const res = await fetch(API_URL);
         const rawData = await res.json();
-        events = normalizeEvents(rawData);
-        renderCalendar();
+        return normalizeEvents(rawData);
     } catch (e) {
-        alert('Ошибка загрузки данных');
-    } finally {
-        document.getElementById('loader').style.display = 'none';
+        return null;
     }
 }
 
@@ -347,8 +359,10 @@ function normalizeEvents(rawData) {
                 ...item,
                 date: normalizeDate(item.date),
                 time: normalizeTime(item.time),
-                row: item.row || item.id || null
+                row: item.row || item.id || null,
+                id: String(item.id || item.row || crypto.randomUUID())
             }))
+            .map(withFingerprint)
             .filter(item => item.date);
     }
 
@@ -362,10 +376,23 @@ function normalizeEvents(rawData) {
                 date: normalizeDate(date),
                 name: String(name || ''),
                 gym: String(gym || ''),
-                time: normalizeTime(time)
+                time: normalizeTime(time),
+                id: String(sourceRow)
             };
         })
+        .map(withFingerprint)
         .filter(item => item.date && item.name);
+}
+
+function withFingerprint(item) {
+    return {
+        ...item,
+        fingerprint: eventFingerprint(item)
+    };
+}
+
+function eventFingerprint(item) {
+    return [item.date || '', item.name || '', item.gym || '', item.time || ''].join('|');
 }
 
 function normalizeDate(input) {
@@ -377,19 +404,24 @@ function normalizeDate(input) {
 function normalizeTime(input) {
     if (input == null || input === '') return '';
     const raw = String(input).trim();
+    if (/^\d{2}:\d{2}:\d{2}$/.test(raw)) return raw.slice(0, 5);
     if (/^\d{2}:\d{2}$/.test(raw)) return raw;
-    const parsed = dayjs(input);
-    if (parsed.isValid() && parsed.year() > 1900) return parsed.format('HH:mm');
     const isoTime = raw.match(/T(\d{2}:\d{2})/);
     if (isoTime) return isoTime[1];
+    const plainTime = raw.match(/\b(\d{2}:\d{2})(?::\d{2})?\b/);
+    if (plainTime) return plainTime[1];
     return raw;
 }
 
 function renderGymIcons(dayEvents) {
     const uniqueGyms = [...new Set(dayEvents.map(item => item.gym))].slice(0, 4);
     return `<div class="gym-icons">${uniqueGyms.map(gym => {
-        const meta = gymMeta[gym] || { icon: '•', color: '#696969' };
-        return `<span class="gym-icon" title="${escapeHTML(gym)}" style="background:${meta.color}">${escapeHTML(meta.icon)}</span>`;
+        const meta = gymMeta[gym];
+        if (!meta || !meta.image) {
+            return `<span class="gym-icon" title="${escapeHTML(gym)}"></span>`;
+        }
+
+        return `<span class="gym-icon" title="${escapeHTML(gym)}"><img src="${encodeURI(meta.image)}" alt="${escapeHTML(gym)}"></span>`;
     }).join('')}</div>`;
 }
 
@@ -439,7 +471,7 @@ function openModal(date) {
         dayEvents.length
         ? dayEvents.map(e =>
             `<div class="visit-item"><div><b>${escapeHTML(e.name)}</b> – ${escapeHTML(e.gym)}${e.time ? ` (${escapeHTML(e.time)})` : ''}</div>
-                <button class="delete-btn" onclick="deleteVisit(${Number(e.row) || 'null'})">Удалить</button></div>`
+                <button class="delete-btn" onclick="deleteVisit('${escapeHTML(e.id)}')">Удалить</button></div>`
           ).join('')
         : 'Пока никто не записался';
 
@@ -450,7 +482,6 @@ function openModal(date) {
 function closeModal() {
     document.getElementById('overlay').classList.remove('open');
     document.getElementById('modal').classList.remove('open');
-    document.getElementById('submitStatus').innerHTML = '';
 }
 
 document.addEventListener('keydown', e=>{
@@ -458,56 +489,137 @@ document.addEventListener('keydown', e=>{
 });
 
 async function submitVisit() {
-    const name = localStorage.getItem('climberName');
+    const name = (localStorage.getItem('climberName') || '').trim();
     if (!name) return alert('Сначала введи имя');
 
-    const newEvent = {
+    const newEvent = withFingerprint({
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         date: selectedDate,
         name,
         gym: document.getElementById('gymSelect').value,
-        time: document.getElementById('visitTime').value
-    };
+        time: document.getElementById('visitTime').value,
+        pending: true,
+        row: null
+    });
 
-    const status = document.getElementById('submitStatus');
-    status.innerHTML = 'Отправка...';
+    events.push(newEvent);
+    persistEvents();
+    renderCalendar();
+    openModal(selectedDate);
 
+    const created = await createVisitOnServer(newEvent);
+    if (created) await syncChanges();
+}
+
+async function createVisitOnServer(newEvent) {
     try {
         const res = await fetch(API_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(newEvent)
+            body: JSON.stringify({
+                date: newEvent.date,
+                name: newEvent.name,
+                gym: newEvent.gym,
+                time: newEvent.time
+            })
         });
-
-        if (!res.ok) throw new Error();
-
-        status.innerHTML = '<div class="success-message">Записано ✅</div>';
-        await fetchData();
-        setTimeout(closeModal, 800);
-
+        return res.ok;
     } catch {
-        status.innerHTML = 'Ошибка отправки';
+        return false;
     }
 }
 
-async function deleteVisit(row) {
-    if (!row) return;
-    const status = document.getElementById('submitStatus');
-    status.innerHTML = 'Удаление...';
+async function deleteVisit(eventId) {
+    const target = events.find(event => event.id === eventId);
+    if (!target) return;
+
+    events = events.filter(event => event.id !== eventId);
+    persistEvents();
+    renderCalendar();
+    openModal(selectedDate);
+
+    if (!target.row) return;
+
     try {
         const res = await fetch(API_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify({ action: 'delete', row })
+            body: JSON.stringify({ action: 'delete', row: target.row })
         });
 
-        if (!res.ok) throw new Error();
-
-        status.innerHTML = '<div class="success-message">Запись удалена ✅</div>';
-        await fetchData();
-        openModal(selectedDate);
+        if (res.ok) await syncChanges();
     } catch {
-        status.innerHTML = 'Ошибка удаления';
+        // локальная запись уже удалена, восстановление не требуется
     }
+}
+
+function persistEvents() {
+    localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(events));
+}
+
+function loadCachedEvents() {
+    try {
+        const raw = localStorage.getItem(EVENTS_CACHE_KEY);
+        if (!raw) return false;
+        events = normalizeEvents(JSON.parse(raw));
+        renderCalendar();
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function initializeCalendar() {
+    const hasCache = loadCachedEvents();
+    const serverEvents = await fetchData();
+
+    if (!serverEvents) {
+        if (!hasCache) renderCalendar();
+        return;
+    }
+
+    if (!hasCache) {
+        events = serverEvents;
+        persistEvents();
+        renderCalendar();
+        return;
+    }
+
+    mergeServerDiff(serverEvents);
+}
+
+function mergeServerDiff(serverEvents) {
+    let changed = false;
+    const localByFingerprint = new Map(events.map(item => [item.fingerprint, item]));
+
+    serverEvents.forEach(serverEvent => {
+        const localEvent = localByFingerprint.get(serverEvent.fingerprint);
+        if (!localEvent) {
+            events.push(serverEvent);
+            changed = true;
+            return;
+        }
+
+        if ((!localEvent.row || localEvent.pending) && serverEvent.row) {
+            localEvent.row = serverEvent.row;
+            localEvent.pending = false;
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        persistEvents();
+        renderCalendar();
+        if (document.getElementById('modal').classList.contains('open')) {
+            openModal(selectedDate);
+        }
+    }
+}
+
+async function syncChanges() {
+    const serverEvents = await fetchData();
+    if (!serverEvents) return;
+    mergeServerDiff(serverEvents);
 }
 
 function changeMonth(step) {
@@ -522,7 +634,8 @@ function changeMonth(step) {
     }, 120);
 }
 
-fetchData();
+initializeCalendar();
+setInterval(syncChanges, SYNC_INTERVAL_MS);
 </script>
 
 </body>
