@@ -299,6 +299,7 @@ let events = [];
 let selectedDate = '';
 const EVENTS_CACHE_KEY = 'climbEventsCache';
 const SYNC_INTERVAL_MS = 10_000;
+const UTC_PLUS_3_OFFSET_MINUTES = 3 * 60;
 
 const gymMeta = {
     'Bigwall Динамо': { image: 'bigwall.png' },
@@ -397,7 +398,17 @@ function eventFingerprint(item) {
 
 function normalizeDate(input) {
     if (!input) return '';
-    const parsed = dayjs(input);
+    const raw = String(input).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+    if (looksLikeDateTime(raw)) {
+        const parsed = new Date(raw);
+        if (!Number.isNaN(parsed.getTime())) {
+            return formatDateForUtcPlus3(parsed);
+        }
+    }
+
+    const parsed = dayjs(raw);
     return parsed.isValid() ? parsed.format('YYYY-MM-DD') : '';
 }
 
@@ -406,11 +417,41 @@ function normalizeTime(input) {
     const raw = String(input).trim();
     if (/^\d{2}:\d{2}:\d{2}$/.test(raw)) return raw.slice(0, 5);
     if (/^\d{2}:\d{2}$/.test(raw)) return raw;
+    if (looksLikeDateTime(raw)) {
+        const parsed = new Date(raw);
+        if (!Number.isNaN(parsed.getTime())) {
+            return formatTimeForUtcPlus3(parsed);
+        }
+    }
+
     const isoTime = raw.match(/T(\d{2}:\d{2})/);
     if (isoTime) return isoTime[1];
     const plainTime = raw.match(/\b(\d{2}:\d{2})(?::\d{2})?\b/);
     if (plainTime) return plainTime[1];
     return raw;
+}
+
+function looksLikeDateTime(value) {
+    return /T/.test(value) || /[zZ]|[+-]\d{2}:?\d{2}/.test(value);
+}
+
+function toUtcPlus3(dateObj) {
+    return new Date(dateObj.getTime() + UTC_PLUS_3_OFFSET_MINUTES * 60_000);
+}
+
+function formatDateForUtcPlus3(dateObj) {
+    const shifted = toUtcPlus3(dateObj);
+    const year = shifted.getUTCFullYear();
+    const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(shifted.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function formatTimeForUtcPlus3(dateObj) {
+    const shifted = toUtcPlus3(dateObj);
+    const hours = String(shifted.getUTCHours()).padStart(2, '0');
+    const minutes = String(shifted.getUTCMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
 }
 
 function renderGymIcons(dayEvents) {
@@ -508,7 +549,16 @@ async function submitVisit() {
     openModal(selectedDate);
 
     const created = await createVisitOnServer(newEvent);
-    if (created) await syncChanges();
+    if (!created) {
+        events = events.filter(event => event.id !== newEvent.id);
+        persistEvents();
+        renderCalendar();
+        openModal(selectedDate);
+        alert('Не удалось сохранить запись. Попробуй еще раз.');
+        return;
+    }
+
+    await syncChanges();
 }
 
 async function createVisitOnServer(newEvent) {
@@ -578,48 +628,28 @@ async function initializeCalendar() {
         return;
     }
 
-    if (!hasCache) {
-        events = serverEvents;
-        persistEvents();
-        renderCalendar();
+    applyServerSnapshot(serverEvents);
+}
+
+function applyServerSnapshot(serverEvents) {
+    const serializedCurrent = JSON.stringify(events);
+    const serializedServer = JSON.stringify(serverEvents);
+    if (serializedCurrent === serializedServer) {
         return;
     }
 
-    mergeServerDiff(serverEvents);
-}
-
-function mergeServerDiff(serverEvents) {
-    let changed = false;
-    const localByFingerprint = new Map(events.map(item => [item.fingerprint, item]));
-
-    serverEvents.forEach(serverEvent => {
-        const localEvent = localByFingerprint.get(serverEvent.fingerprint);
-        if (!localEvent) {
-            events.push(serverEvent);
-            changed = true;
-            return;
-        }
-
-        if ((!localEvent.row || localEvent.pending) && serverEvent.row) {
-            localEvent.row = serverEvent.row;
-            localEvent.pending = false;
-            changed = true;
-        }
-    });
-
-    if (changed) {
-        persistEvents();
-        renderCalendar();
-        if (document.getElementById('modal').classList.contains('open')) {
-            openModal(selectedDate);
-        }
+    events = serverEvents;
+    persistEvents();
+    renderCalendar();
+    if (document.getElementById('modal').classList.contains('open')) {
+        openModal(selectedDate);
     }
 }
 
 async function syncChanges() {
     const serverEvents = await fetchData();
     if (!serverEvents) return;
-    mergeServerDiff(serverEvents);
+    applyServerSnapshot(serverEvents);
 }
 
 function changeMonth(step) {
