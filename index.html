@@ -255,7 +255,7 @@ button {
 }
 
 .visit-item.uncertain {
-    filter: opacity(95%);
+    filter: opacity(85%);
 }
 
 .delete-btn {
@@ -288,7 +288,7 @@ button {
 
 .modal-controls {
     display: grid;
-    gap: 10px;
+    gap: 12px;
 }
 
 .uncertain-toggle {
@@ -299,6 +299,7 @@ button {
     font-size: 0.92em;
     opacity: 0.95;
     user-select: none;
+    padding: 2px 0;
 }
 
 .uncertain-checkbox {
@@ -318,12 +319,11 @@ button {
 
 .uncertain-checkbox::before {
     content: '';
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
-    background: transparent;
-    transform: scale(0.5);
-    transition: transform 0.14s ease, background-color 0.14s ease;
+    color: #121212;
+    font-size: 12px;
+    line-height: 1;
+    transform: scale(0.7);
+    transition: transform 0.14s ease, color 0.14s ease;
 }
 
 .uncertain-checkbox:hover {
@@ -332,11 +332,12 @@ button {
 
 .uncertain-checkbox:checked {
     border-color: var(--accent);
-    background: rgba(187, 134, 252, 0.2);
+    background: var(--accent);
 }
 
 .uncertain-checkbox:checked::before {
-    background: var(--accent);
+    content: '✓';
+    color: #121212;
     transform: scale(1);
 }
 
@@ -357,6 +358,7 @@ button {
 
 #submitVisitButton {
     margin-top: 0;
+    padding: 11px 10px;
 }
 
 .custom-select {
@@ -368,7 +370,7 @@ button {
     background: #2d2d2d;
     border: 1px solid var(--border);
     color: #fff;
-    padding: 10px 12px;
+    padding: 11px 12px;
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -479,6 +481,7 @@ const EVENTS_CACHE_KEY = 'climbEventsCache';
 const SYNC_INTERVAL_MS = 10_000;
 const SHADOW_TTL_MS = 5_000;
 const UTC_PLUS_3_OFFSET_MINUTES = 3 * 60;
+const UNSURE_MARK = ' (?)';
 
 const gymMeta = {
     'Bigwall Динамо': { image: 'icons/bigwall.png' },
@@ -631,14 +634,18 @@ function normalizeEvents(rawData) {
     if (rawData.length > 0 && !Array.isArray(rawData[0])) {
         return rawData
             .filter(item => item && item.date && item.name)
-            .map(item => ({
-                ...item,
-                date: normalizeDate(item.date),
-                time: normalizeTime(item.time),
-                unsure: normalizeUnsure(item.unsure),
-                row: item.row || item.id || null,
-                id: String(item.id || item.row || crypto.randomUUID())
-            }))
+            .map(item => {
+                const parsed = parseUnsureFromName(item.name);
+                return {
+                    ...item,
+                    date: normalizeDate(item.date),
+                    name: parsed.name,
+                    time: normalizeTime(item.time),
+                    unsure: normalizeUnsure(item.unsure) || parsed.unsure,
+                    row: item.row || item.id || null,
+                    id: String(item.id || item.row || crypto.randomUUID())
+                };
+            })
             .map(withFingerprint)
             .filter(item => item.date);
     }
@@ -648,18 +655,29 @@ function normalizeEvents(rawData) {
         .filter(({ row }) => Array.isArray(row) && row.length >= 4)
         .map(({ row, sourceRow }) => {
             const [date, name, gym, time, unsure] = row;
+            const parsed = parseUnsureFromName(name);
             return {
                 row: sourceRow,
                 date: normalizeDate(date),
-                name: String(name || ''),
+                name: parsed.name,
                 gym: String(gym || ''),
                 time: normalizeTime(time),
-                unsure: normalizeUnsure(unsure),
+                unsure: normalizeUnsure(unsure) || parsed.unsure,
                 id: String(sourceRow)
             };
         })
         .map(withFingerprint)
         .filter(item => item.date && item.name);
+}
+
+function parseUnsureFromName(nameValue) {
+    const rawName = String(nameValue || '').trim();
+    if (!rawName) return { name: '', unsure: false };
+    if (!rawName.endsWith(UNSURE_MARK)) return { name: rawName, unsure: false };
+    return {
+        name: rawName.slice(0, -UNSURE_MARK.length).trim(),
+        unsure: true
+    };
 }
 
 function withFingerprint(item) {
@@ -873,10 +891,9 @@ async function createVisitOnServer(newEvent) {
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
             body: JSON.stringify({
                 date: newEvent.date,
-                name: newEvent.name,
+                name: newEvent.unsure ? `${newEvent.name}${UNSURE_MARK}` : newEvent.name,
                 gym: newEvent.gym,
-                time: newEvent.time,
-                unsure: newEvent.unsure
+                time: newEvent.time
             })
         });
         return res.ok;
