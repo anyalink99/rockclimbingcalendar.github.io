@@ -63,7 +63,7 @@
             const eventKey = `${event.fingerprint}|${sameFingerprintCount}`;
             nextModalKeys.add(eventKey);
             const isNew = previousModalKeys.has(eventKey) ? '' : ' is-new';
-            return `<div class="visit-item${isNew} ${event.unsure ? 'uncertain' : ''}"><div class="visit-text"><b class="visit-name${event.unsure ? ' uncertain' : ''}">${window.AppCore.escapeHtml(event.name)}${event.unsure ? ' (?)' : ''}</b> – ${window.AppCore.escapeHtml(event.gym)}${event.time ? ` (${window.AppCore.escapeHtml(event.time)})` : ''}</div><button class="delete-btn" onclick="deleteVisit('${window.AppCore.escapeHtml(event.id)}')">Удалить</button></div>`;
+            return `<div class="visit-item${isNew} ${event.unsure ? 'uncertain' : ''}"><div class="visit-text"><b class="visit-name${event.unsure ? ' uncertain' : ''}">${window.AppCore.escapeHtml(event.name)}${event.unsure ? ' (?)' : ''}</b> – <button type="button" class="gym-ref-link" onclick="openGymByReference('${window.AppCore.escapeHtml(event.gym)}')">${window.AppCore.escapeHtml(event.gym)}</button>${event.time ? ` (${window.AppCore.escapeHtml(event.time)})` : ''}</div><button class="delete-btn" onclick="deleteVisit('${window.AppCore.escapeHtml(event.id)}')">Удалить</button></div>`;
         }).join('') : 'Пока никто не записался';
 
         CalendarState.modalEventKeysByDate[date] = nextModalKeys;

@@ -16,6 +16,9 @@
             if (part.type === 'mention') {
                 return `<span class="chat-message-mention">${window.AppCore.escapeHtml(part.text)}</span>`;
             }
+            if (part.type === 'gym-ref') {
+                return `<button type="button" class="gym-ref-link chat-gym-ref" data-gym-ref="${window.AppCore.escapeHtml(part.text)}">${window.AppCore.escapeHtml(part.text)}</button>`;
+            }
             return window.AppCore.escapeHtml(part.text || '');
         }).join('');
     }
