@@ -13,7 +13,8 @@ const chatState = {
     hasMore: true,
     open: false,
     loading: false,
-    syncTimerId: null
+    syncTimerId: null,
+    readBlockedByCors: false
 };
 
 const chatPanelElement = document.getElementById('chatPanel');
@@ -73,18 +74,39 @@ async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
         limit: String(limit)
     });
 
-    const res = await fetch(`${CHAT_API_URL}?${params.toString()}`, {
+    const requestUrl = `${CHAT_API_URL}?${params.toString()}`;
+    const res = await fetch(requestUrl, {
         method: 'GET',
         cache: 'no-store'
     });
     if (!res.ok) throw new Error('Chat load failed');
     const data = await res.json();
+    chatState.readBlockedByCors = false;
 
     return {
         items: normalizeChatMessages(data.items || []),
         nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
         hasMore: Boolean(data.hasMore)
     };
+}
+
+function handleChatReadError(error) {
+    const isCorsLikeError = error instanceof TypeError || /failed to fetch/i.test(String(error && error.message));
+    if (!isCorsLikeError) return;
+
+    if (!chatState.readBlockedByCors) {
+        chatState.readBlockedByCors = true;
+        console.warn('Chat GET blocked (likely CORS). Ensure Apps Script chat deployment allows public web access and returns CORS headers.');
+    }
+
+    if (chatState.syncTimerId) {
+        clearInterval(chatState.syncTimerId);
+        chatState.syncTimerId = null;
+    }
+
+    if (!chatState.messages.length) {
+        chatMessagesElement.innerHTML = '<div class="chat-message-item">Чат временно недоступен из-за CORS в Apps Script.</div>';
+    }
 }
 
 async function refreshChat(initial = false) {
@@ -114,6 +136,7 @@ async function refreshChat(initial = false) {
         chatState.hasMore = latestChunk.hasMore;
         updateChatLoadMoreState();
     } catch (error) {
+        handleChatReadError(error);
         console.error(error);
     } finally {
         chatState.loading = false;
@@ -135,6 +158,7 @@ async function loadOlderChatMessages() {
         const newHeight = chatMessagesElement.scrollHeight;
         chatMessagesElement.scrollTop += (newHeight - previousHeight);
     } catch (error) {
+        handleChatReadError(error);
         console.error(error);
     } finally {
         chatState.loading = false;
@@ -198,18 +222,31 @@ async function sendChatMessage() {
     chatMessageInputElement.value = '';
 
     try {
-        const res = await fetch(CHAT_API_URL, {
-            method: 'POST',
-            mode: 'cors',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-                action: 'chat_send',
-                sheet: CHAT_SHEET_NAME,
-                chat_name: CHAT_NAME,
-                author,
-                text
-            })
+        const payload = JSON.stringify({
+            action: 'chat_send',
+            sheet: CHAT_SHEET_NAME,
+            chat_name: CHAT_NAME,
+            author,
+            text
         });
+
+        let res;
+        try {
+            res = await fetch(CHAT_API_URL, {
+                method: 'POST',
+                mode: 'cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: payload
+            });
+        } catch (error) {
+            await fetch(CHAT_API_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: payload
+            });
+            res = { ok: true };
+        }
 
         if (!res.ok) throw new Error('chat_send failed');
         await refreshChat();
