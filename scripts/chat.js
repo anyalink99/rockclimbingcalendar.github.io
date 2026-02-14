@@ -53,6 +53,8 @@ function toggleChatPanel(forceOpen) {
     }
 }
 
+
+
 function normalizeChatMessages(rawItems) {
     if (!Array.isArray(rawItems)) return [];
     return rawItems
@@ -65,6 +67,38 @@ function normalizeChatMessages(rawItems) {
         }));
 }
 
+function fetchChatChunkViaJsonp(params) {
+    return new Promise((resolve, reject) => {
+        const callbackName = `chatJsonp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const script = document.createElement('script');
+        const timeoutId = setTimeout(() => {
+            cleanup();
+            reject(new Error('Chat JSONP timeout'));
+        }, 10000);
+
+        function cleanup() {
+            clearTimeout(timeoutId);
+            delete window[callbackName];
+            if (script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[callbackName] = (data) => {
+            cleanup();
+            resolve(data || {});
+        };
+
+        script.onerror = () => {
+            cleanup();
+            reject(new Error('Chat JSONP failed'));
+        };
+
+        const withCallback = new URLSearchParams(params);
+        withCallback.set('callback', callbackName);
+        script.src = `${CHAT_API_URL}?${withCallback.toString()}`;
+        document.head.appendChild(script);
+    });
+}
+
 async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
     const params = new URLSearchParams({
         mode: 'chat',
@@ -75,19 +109,31 @@ async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
     });
 
     const requestUrl = `${CHAT_API_URL}?${params.toString()}`;
-    const res = await fetch(requestUrl, {
-        method: 'GET',
-        cache: 'no-store'
-    });
-    if (!res.ok) throw new Error('Chat load failed');
-    const data = await res.json();
-    chatState.readBlockedByCors = false;
 
-    return {
-        items: normalizeChatMessages(data.items || []),
-        nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
-        hasMore: Boolean(data.hasMore)
-    };
+    try {
+        const res = await fetch(requestUrl, {
+            method: 'GET',
+            cache: 'no-store'
+        });
+        if (!res.ok) throw new Error('Chat load failed');
+        const data = await res.json();
+        chatState.readBlockedByCors = false;
+
+        return {
+            items: normalizeChatMessages(data.items || []),
+            nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
+            hasMore: Boolean(data.hasMore)
+        };
+    } catch (error) {
+        const data = await fetchChatChunkViaJsonp(params);
+        chatState.readBlockedByCors = false;
+
+        return {
+            items: normalizeChatMessages(data.items || []),
+            nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
+            hasMore: Boolean(data.hasMore)
+        };
+    }
 }
 
 function handleChatReadError(error) {
@@ -96,7 +142,7 @@ function handleChatReadError(error) {
 
     if (!chatState.readBlockedByCors) {
         chatState.readBlockedByCors = true;
-        console.warn('Chat GET blocked (likely CORS). Ensure Apps Script chat deployment allows public web access and returns CORS headers.');
+        console.warn('Chat read failed via fetch and JSONP fallback. Check Apps Script deployment URL and callback support.');
     }
 
     if (chatState.syncTimerId) {

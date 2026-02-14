@@ -1,3 +1,18 @@
+function chatJsonResponse(payload, params) {
+  const callback = params && String(params.callback || '').trim();
+  const callbackSafe = /^[A-Za-z_$][0-9A-Za-z_$]*(?:\.[A-Za-z_$][0-9A-Za-z_$]*)*$/.test(callback);
+
+  if (callbackSafe) {
+    return ContentService
+      .createTextOutput(`${callback}(${JSON.stringify(payload)})`)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 function getChatSheetByNameOrActive(name) {
   if (name) {
     const sheetByName = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
@@ -74,4 +89,18 @@ function handleChatPost(params) {
   ]);
 
   return { ok: true, message_id: messageId, date: timestamp.toISOString() };
+}
+
+function doGet(e) {
+  const params = (e && e.parameter) || {};
+  const chatResponse = handleChatGet(params);
+  if (chatResponse) return chatJsonResponse(chatResponse, params);
+  return chatJsonResponse({ ok: false, error: 'Unsupported mode' }, params);
+}
+
+function doPost(e) {
+  const params = JSON.parse((e.postData && e.postData.contents) || '{}');
+  const chatResponse = handleChatPost(params);
+  if (chatResponse) return chatJsonResponse(chatResponse, params);
+  return chatJsonResponse({ ok: false, error: 'Unsupported action' }, params);
 }
