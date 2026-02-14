@@ -988,7 +988,7 @@ button {
     border-radius: 11px;
     padding: 10px;
     display: grid;
-    gap: 8px;
+    gap: 10px;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     align-items: start;
 }
@@ -997,8 +997,12 @@ button {
     display: grid;
     gap: 4px;
     font-size: 0.78rem;
+    margin: 0;
+    align-content: start;
 }
 .pricing-slot-item label span {
+    display: block;
+    min-height: 1.1em;
     line-height: 1.2;
 }
 

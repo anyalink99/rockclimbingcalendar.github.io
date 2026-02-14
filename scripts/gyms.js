@@ -198,6 +198,7 @@
 
     function chooseTopPrice(slot) {
         const prices = slot.prices || {};
+        if (prices.singlePrice) return prices.singlePrice;
         const tariffType = resolveTariffType(slot);
         if (tariffType === 'membership') return prices.membershipPrice || prices.singlePrice || '';
         if (tariffType === 'unlimited') return prices.unlimitedPrice || '';
@@ -255,7 +256,8 @@
 
     function renderPricingPreview(gym) {
         const slots = getVisiblePricingSlots(gym);
-        const preferred = pickBestSlot(slots);
+        const slotsWithSingle = slots.filter((slot) => String(slot?.prices?.singlePrice || '').trim());
+        const preferred = pickBestSlot(slotsWithSingle.length ? slotsWithSingle : slots);
         if (!preferred) return '<span class="gym-card-meta">Тарифы не заполнены</span>';
 
         const dayType = preferred.dayType === 'weekend' ? 'выходной' : preferred.dayType === 'weekday' ? 'будний' : '';
@@ -336,6 +338,7 @@
     function resolveTariffType(slot) {
         if (slot.tariffType) return slot.tariffType;
         const prices = slot.prices || {};
+        if (prices.singlePrice) return 'single';
         if (prices.membershipPrice) return 'membership';
         if (prices.unlimitedPrice) return 'unlimited';
         return 'single';
@@ -402,7 +405,7 @@
 
         return `<section class="gym-modal-section"><h4>Тарифы</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
             <div class="pricing-slot-item" data-slot-index="${index}">
-                <label><span>Название</span><input data-slot-field="label" type="text" value="${window.AppCore.escapeHtml(slot.label || '')}"></label>
+                <label><span>Название тарифа</span><input data-slot-field="label" type="text" value="${window.AppCore.escapeHtml(slot.label || '')}"></label>
                 <label><span>День</span>${renderSlotCustomSelect({ field: 'dayType', value: slot.dayType || '', placeholder: 'Любой', options: [{ value: '', label: 'Любой' }, { value: 'weekday', label: 'Будний' }, { value: 'weekend', label: 'Выходной' }] })}</label>
                 <label><span>С</span>${renderSlotTimeSelect('start', slot.start || '')}</label>
                 <label><span>До</span>${renderSlotTimeSelect('end', slot.end || '')}</label>
@@ -428,10 +431,10 @@
         state.lastRenderedEditMode = state.editMode;
     }
 
-    function collectPricingSlotsFromForm() {
+    function collectPricingSlotsFromForm({ includeEmpty = false } = {}) {
         const editor = gymModalBody.querySelector('#pricingSlotsEditor');
         if (!editor) return [];
-        return Array.from(editor.querySelectorAll('.pricing-slot-item')).map((node) => {
+        const slots = Array.from(editor.querySelectorAll('.pricing-slot-item')).map((node) => {
             const get = (field) => String((node.querySelector(`[data-slot-field="${field}"]`) || {}).value || '').trim();
             const slot = {
                 label: get('label'), dayType: get('dayType'), start: get('start'), end: get('end'), isSocial: get('isSocial'), tariffType: get('tariffType') || 'single',
@@ -444,7 +447,9 @@
                 }
             };
             return slot;
-        }).filter(slot => slot.label
+        });
+        if (includeEmpty) return slots;
+        return slots.filter(slot => slot.label
             || slot.dayType
             || slot.start
             || slot.end
@@ -463,7 +468,7 @@
         if (!state.editMode) return;
         const gym = state.gyms.find(item => item.id === state.selectedGymId);
         if (!gym) return;
-        gym.details = { ...(gym.details || {}), pricingSlots: collectPricingSlotsFromForm() };
+        gym.details = { ...(gym.details || {}), pricingSlots: collectPricingSlotsFromForm({ includeEmpty: true }) };
     }
 
     async function saveGym() {
