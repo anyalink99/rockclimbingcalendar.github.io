@@ -1,4 +1,4 @@
-const CHAT_API_URL = API_URL;
+const CHAT_API_URL = 'https://script.google.com/macros/s/AKfycbzOcgR2msOdbDPhNj05WFbgVWpvN_hwR2nYHouCPoce_r8BR8JmUO-g8LYBOsPx54DF/exec';
 const CHAT_NAME = 'Залез? 2';
 const CHAT_SHEET_NAME = 'Chat';
 const CHAT_BATCH_SIZE = 100;
