@@ -815,6 +815,34 @@ button {
     opacity: 0.84;
 }
 
+.gym-card-price {
+    margin-top: 2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: fit-content;
+    max-width: 100%;
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent) 44%, var(--border));
+    background: color-mix(in srgb, var(--accent) 14%, var(--card-bg));
+}
+
+.gym-card-price-label {
+    font-size: 0.74rem;
+    line-height: 1.2;
+    opacity: 0.86;
+}
+
+.gym-card-price-value {
+    font-size: 0.88rem;
+    line-height: 1;
+    color: var(--accent);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
 .gym-modal {
     position: fixed;
     top: 50%;
@@ -1064,12 +1092,9 @@ button {
 
 .slot-remove {
     margin: 0;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     display: inline-flex;
-    position: absolute;
-    top: 8px;
-    right: 8px;
     align-items: center;
     justify-content: center;
     padding: 0;
@@ -1077,11 +1102,15 @@ button {
     border: 1px solid color-mix(in srgb, #ff4d4d 70%, var(--border));
     background: color-mix(in srgb, #ff4d4d 16%, var(--secondary-bg));
     color: #ff4d4d;
-    font-size: 0.95rem;
     line-height: 1;
     position: absolute;
     right: 10px;
     bottom: 10px;
+}
+
+.slot-remove svg {
+    width: 16px;
+    height: 16px;
 }
 
 .slot-remove:hover {
