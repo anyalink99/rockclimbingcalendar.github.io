@@ -2,11 +2,11 @@
     const { CalendarState, CalendarConfig, CalendarDom, CalendarData, CalendarUI } = window;
 
     function renderGymIcons(dayEvents, dateStr) {
-        const uniqueGyms = [...new Set(dayEvents.map(item => item.gym))].slice(0, 4);
+        const uniqueGyms = [...new Set(dayEvents.map(item => String(item.gym || '').trim()).filter(Boolean))].slice(0, 4);
         const previousGyms = CalendarState.previousCalendarGymsByDate[dateStr] || new Set();
         return `<div class="gym-icons">${uniqueGyms.map((gym) => {
             const isNew = !previousGyms.has(gym) ? ' is-new' : '';
-            const meta = CalendarConfig.gymMeta[gym];
+            const meta = CalendarConfig.gymMeta[gym] || CalendarConfig.defaultGymMeta[gym];
             if (!meta || !meta.image) {
                 return `<span class="gym-icon${isNew}" title="${window.AppCore.escapeHtml(gym)}"></span>`;
             }
