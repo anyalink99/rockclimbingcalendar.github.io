@@ -279,7 +279,7 @@
                 <span class="gym-card-title"><img src="${encodeURI(gym.icon || '')}" alt="">${window.AppCore.escapeHtml(gym.name)}</span>
                 <span class="gym-card-meta">Ближайший поход: ${window.AppCore.escapeHtml(summary.upcoming)}</span>
                 <span class="gym-card-meta">Последний поход: ${window.AppCore.escapeHtml(summary.last)}</span>
-                ${renderPricingPreview(gym)}
+                <span class="gym-card-pricing">${renderPricingPreview(gym)}</span>
             </button>`;
         }).join('');
         updateCardsLayoutClass();
@@ -389,7 +389,6 @@
         if (!state.editMode) {
             const lines = sortPricingSlotsForReadMode(getVisiblePricingSlots(gym)).map((slot) => {
                 const dayType = slot.dayType === 'weekend' ? 'Выходной' : slot.dayType === 'weekday' ? 'Будний' : '';
-                const socialFlag = resolveSlotSocialFlag(slot) === 'yes' ? 'Социальный: да' : resolveSlotSocialFlag(slot) === 'no' ? 'Социальный: нет' : '';
                 const range = [slot.start, slot.end].filter(Boolean).join('–');
                 const prices = slot.prices || {};
                 const tariffType = resolveTariffType(slot);
@@ -401,7 +400,7 @@
                     tariffType === 'unlimited' && prices.unlimitedDuration ? `Длительность: ${prices.unlimitedDuration}` : ''
                 ].filter(Boolean).join(' · ');
                 if (!chunks) return '';
-                return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range, socialFlag].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
+                return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
             }).filter(Boolean);
             if (!lines.length) return '';
             return `<section class="gym-modal-section"><div class="gym-modal-pricing-header"><h4>Тарифы</h4>${renderSocialModeToggle('modal')}</div><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>`;

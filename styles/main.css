@@ -854,9 +854,10 @@ button {
 
 .gym-modal-pricing-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    align-items: flex-start;
+    justify-content: flex-start;
     gap: 8px;
+    margin-top: 16px;
     margin-bottom: 8px;
 }
 
@@ -866,6 +867,7 @@ button {
 
 .social-mode-toggle-modal {
     flex-shrink: 0;
+    margin-top: -2px;
 }
 
 .gym-card-price {
