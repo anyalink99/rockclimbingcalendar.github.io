@@ -207,24 +207,50 @@
     function pickBestSlot(slots) {
         if (!slots.length) return null;
         const defaultMinutes = Number(DEFAULT_PRICING_TIME.split(':')[0]) * 60 + Number(DEFAULT_PRICING_TIME.split(':')[1]);
+        const parseTime = (timeValue) => {
+            const [hours, minutes] = String(timeValue || '').split(':');
+            const h = Number(hours);
+            const m = Number(minutes);
+            if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+            return h * 60 + m;
+        };
+
+        const slotContainsDefaultTime = (slot) => {
+            const startMinutes = parseTime(slot.start);
+            const endMinutes = parseTime(slot.end);
+            if (startMinutes === null || endMinutes === null) return true;
+            return defaultMinutes >= startMinutes && defaultMinutes <= endMinutes;
+        };
+
+        const strictWeekday = slots.filter(slot => slot.dayType === 'weekday' && slotContainsDefaultTime(slot));
+        if (strictWeekday.length) return strictWeekday[0];
+
+        const fallbackAnyDay = slots.filter(slot => !slot.dayType && slotContainsDefaultTime(slot));
+        if (fallbackAnyDay.length) return fallbackAnyDay[0];
+
         const withScore = slots.map((slot) => {
-            const dayScore = slot.dayType === 'weekday' ? 0 : slot.dayType ? 3 : 1;
-            const start = String(slot.start || '').trim();
-            const end = String(slot.end || '').trim();
-            let timeScore = 1;
-            if (start && end) {
-                const startMinutes = Number(start.split(':')[0]) * 60 + Number(start.split(':')[1]);
-                const endMinutes = Number(end.split(':')[0]) * 60 + Number(end.split(':')[1]);
-                if (defaultMinutes >= startMinutes && defaultMinutes <= endMinutes) {
-                    timeScore = 0;
-                } else {
-                    timeScore = Math.min(Math.abs(defaultMinutes - startMinutes), Math.abs(defaultMinutes - endMinutes)) / 60;
-                }
+            const dayScore = slot.dayType === 'weekday' ? 0 : slot.dayType ? 2 : 1;
+            const start = parseTime(slot.start);
+            const end = parseTime(slot.end);
+            let timeScore = 0;
+            if (start !== null && end !== null) {
+                if (defaultMinutes < start) timeScore = start - defaultMinutes;
+                else if (defaultMinutes > end) timeScore = defaultMinutes - end;
             }
-            return { slot, score: dayScore * 10 + timeScore };
+            return { slot, score: dayScore * 1000 + timeScore };
         });
         withScore.sort((a, b) => a.score - b.score);
         return withScore[0].slot;
+    }
+
+    function sortPricingSlotsForReadMode(slots) {
+        const tariffPriority = { single: 0, membership: 1, unlimited: 2 };
+        return [...slots].sort((a, b) => {
+            const aType = tariffPriority[resolveTariffType(a)] ?? 99;
+            const bType = tariffPriority[resolveTariffType(b)] ?? 99;
+            if (aType !== bType) return aType - bType;
+            return String(a.label || '').localeCompare(String(b.label || ''), 'ru');
+        });
     }
 
     function renderPricingPreview(gym) {
@@ -355,7 +381,7 @@
     function renderPricingSlots(gym) {
         const slots = getPricingSlots(gym);
         if (!state.editMode) {
-            const lines = getVisiblePricingSlots(gym).map((slot) => {
+            const lines = sortPricingSlotsForReadMode(getVisiblePricingSlots(gym)).map((slot) => {
                 const dayType = slot.dayType === 'weekend' ? 'Выходной' : slot.dayType === 'weekday' ? 'Будний' : '';
                 const socialFlag = resolveSlotSocialFlag(slot) === 'yes' ? 'Социальный: да' : resolveSlotSocialFlag(slot) === 'no' ? 'Социальный: нет' : '';
                 const range = [slot.start, slot.end].filter(Boolean).join('–');
