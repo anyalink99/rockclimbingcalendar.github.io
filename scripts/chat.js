@@ -1,4 +1,7 @@
-const CHAT_API_URL = 'https://script.google.com/macros/s/AKfycbzOcgR2msOdbDPhNj05WFbgVWpvN_hwR2nYHouCPoce_r8BR8JmUO-g8LYBOsPx54DF/exec';
+const DEFAULT_CHAT_API_URL = 'https://script.google.com/macros/s/AKfycbzOcgR2msOdbDPhNj05WFbgVWpvN_hwR2nYHouCPoce_r8BR8JmUO-g8LYBOsPx54DF/exec';
+const CHAT_API_URL = typeof window !== 'undefined' && typeof window.CHAT_API_URL === 'string' && window.CHAT_API_URL.trim()
+    ? window.CHAT_API_URL.trim()
+    : DEFAULT_CHAT_API_URL;
 const CHAT_NAME = 'Залез? 2';
 const CHAT_SHEET_NAME = 'Chat';
 const CHAT_BATCH_SIZE = 100;
@@ -9,10 +12,12 @@ const chatState = {
     offset: 0,
     hasMore: true,
     open: false,
-    loading: false
+    loading: false,
+    syncTimerId: null
 };
 
 const chatPanelElement = document.getElementById('chatPanel');
+const chatOverlayElement = document.getElementById('chatOverlay');
 const chatMessagesElement = document.getElementById('chatMessages');
 const chatLoadMoreButtonElement = document.getElementById('chatLoadMoreButton');
 const chatMessageInputElement = document.getElementById('chatMessageInput');
@@ -22,13 +27,28 @@ function toggleChatPanel(forceOpen) {
     chatState.open = nextOpen;
     chatPanelElement.classList.toggle('open', nextOpen);
     chatPanelElement.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
+    chatOverlayElement.classList.toggle('open', nextOpen);
+    chatOverlayElement.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
 
-    if (!nextOpen) return;
+    if (!nextOpen) {
+        if (chatState.syncTimerId) {
+            clearInterval(chatState.syncTimerId);
+            chatState.syncTimerId = null;
+        }
+        return;
+    }
 
     if (!chatState.messages.length) {
         refreshChat(true);
     } else {
         renderChatMessages({ stickToBottom: true });
+        refreshChat();
+    }
+
+    if (!chatState.syncTimerId) {
+        chatState.syncTimerId = setInterval(() => {
+            if (chatState.open) refreshChat();
+        }, CHAT_SYNC_INTERVAL_MS);
     }
 }
 
@@ -53,7 +73,10 @@ async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
         limit: String(limit)
     });
 
-    const res = await fetch(`${CHAT_API_URL}?${params.toString()}`);
+    const res = await fetch(`${CHAT_API_URL}?${params.toString()}`, {
+        method: 'GET',
+        cache: 'no-store'
+    });
     if (!res.ok) throw new Error('Chat load failed');
     const data = await res.json();
 
@@ -79,17 +102,16 @@ async function refreshChat(initial = false) {
         }
 
         const existingIds = new Set(chatState.messages.map(item => item.messageId));
-        const latestChunk = await fetchChatChunk(0);
+        const latestChunk = await fetchChatChunk(0, Math.max(chatState.messages.length + CHAT_BATCH_SIZE, CHAT_BATCH_SIZE));
         const fresh = latestChunk.items.filter(item => !existingIds.has(item.messageId));
 
-        if (fresh.length) {
-            chatState.messages = [...chatState.messages, ...fresh]
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            chatState.offset += fresh.length;
+        if (fresh.length || latestChunk.items.length !== chatState.messages.length) {
+            chatState.messages = latestChunk.items;
+            chatState.offset = latestChunk.nextOffset;
             renderChatMessages({ stickToBottom: true });
         }
 
-        chatState.hasMore = latestChunk.hasMore || chatState.hasMore;
+        chatState.hasMore = latestChunk.hasMore;
         updateChatLoadMoreState();
     } catch (error) {
         console.error(error);
@@ -178,6 +200,7 @@ async function sendChatMessage() {
     try {
         const res = await fetch(CHAT_API_URL, {
             method: 'POST',
+            mode: 'cors',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
                 action: 'chat_send',
@@ -199,14 +222,36 @@ async function sendChatMessage() {
 }
 
 
+chatOverlayElement.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleChatPanel(false);
+});
+
+chatOverlayElement.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+});
+
+chatPanelElement.addEventListener('pointerdown', (event) => {
+    event.stopPropagation();
+});
+
+chatLoadMoreButtonElement.addEventListener('click', (event) => {
+    event.preventDefault();
+    loadOlderChatMessages();
+});
+
+document.getElementById('chatSendButton').addEventListener('click', (event) => {
+    event.preventDefault();
+    sendChatMessage();
+});
+
 chatMessageInputElement.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         sendChatMessage();
     }
 });
 
 renderChatMessages();
-setInterval(() => {
-    if (chatState.open) refreshChat();
-}, CHAT_SYNC_INTERVAL_MS);

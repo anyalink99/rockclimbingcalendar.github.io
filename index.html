@@ -53,14 +53,16 @@
     </svg>
 </button>
 
+<div id="chatOverlay" class="chat-overlay" aria-hidden="true"></div>
+
 <div id="chatPanel" class="chat-panel" aria-hidden="true">
     <div class="chat-panel-controls">
-        <button type="button" id="chatLoadMoreButton" class="chat-load-more" onpointerdown="loadOlderChatMessages()">Загрузить ещё 100</button>
+        <button type="button" id="chatLoadMoreButton" class="chat-load-more">Загрузить ещё 100</button>
     </div>
     <div id="chatMessages" class="chat-messages"></div>
     <div class="chat-panel-input">
         <textarea id="chatMessageInput" rows="1"></textarea>
-        <button type="button" id="chatSendButton" class="chat-send-button" aria-label="Отправить" onpointerdown="sendChatMessage()">
+        <button type="button" id="chatSendButton" class="chat-send-button" aria-label="Отправить">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M22 2L11 13"></path>
                 <path d="M22 2L15 22l-4-9-9-4z"></path>
