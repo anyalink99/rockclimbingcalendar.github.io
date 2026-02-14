@@ -176,6 +176,19 @@
         return state.socialMode ? socialFlag === 'yes' : socialFlag === 'no';
     }
 
+    function getVisiblePricingSlots(gym) {
+        const slots = getPricingSlots(gym);
+        if (!state.socialMode) return slots.filter(isSlotVisibleInMode);
+
+        const socialSlots = slots.filter(slot => resolveSlotSocialFlag(slot) === 'yes');
+        if (socialSlots.length) return socialSlots;
+
+        return slots.filter((slot) => {
+            const socialFlag = resolveSlotSocialFlag(slot);
+            return !socialFlag || socialFlag === 'no';
+        });
+    }
+
     function chooseTopPrice(slot) {
         const prices = slot.prices || {};
         return prices.singlePrice || prices.membershipPrice || prices.unlimitedPrice || prices.studentPrice || '';
@@ -205,7 +218,7 @@
     }
 
     function renderPricingPreview(gym) {
-        const slots = getPricingSlots(gym).filter(isSlotVisibleInMode);
+        const slots = getVisiblePricingSlots(gym);
         const preferred = pickBestSlot(slots);
         if (!preferred) return '<span class="gym-card-meta">Тарифы не заполнены</span>';
 
@@ -228,6 +241,18 @@
                 ${renderPricingPreview(gym)}
             </button>`;
         }).join('');
+        updateCardsLayoutClass();
+    }
+
+    function updateCardsLayoutClass() {
+        const cards = cardsContainer.querySelectorAll('.gym-card');
+        if (!cards.length) {
+            cardsContainer.classList.remove('is-list-layout');
+            return;
+        }
+        const containerWidth = cardsContainer.clientWidth;
+        const isListLayout = Array.from(cards).every(card => card.offsetWidth >= containerWidth * 0.9);
+        cardsContainer.classList.toggle('is-list-layout', isListLayout);
     }
 
     function setPage(isGymsPage) {
@@ -267,7 +292,7 @@
     function renderPricingSlots(gym) {
         const slots = getPricingSlots(gym);
         if (!state.editMode) {
-            const lines = slots.filter(isSlotVisibleInMode).map((slot) => {
+            const lines = getVisiblePricingSlots(gym).map((slot) => {
                 const dayType = slot.dayType === 'weekend' ? 'Выходной' : slot.dayType === 'weekday' ? 'Будний' : '';
                 const socialFlag = resolveSlotSocialFlag(slot) === 'yes' ? 'Социальный: да' : resolveSlotSocialFlag(slot) === 'no' ? 'Социальный: нет' : '';
                 const range = [slot.start, slot.end].filter(Boolean).join('–');
@@ -285,7 +310,7 @@
                 <label><span>День</span><select data-slot-field="dayType"><option value="" ${!slot.dayType ? 'selected' : ''}>Любой</option><option value="weekday" ${slot.dayType === 'weekday' ? 'selected' : ''}>Будний</option><option value="weekend" ${slot.dayType === 'weekend' ? 'selected' : ''}>Выходной</option></select></label>
                 <label><span>С</span><input data-slot-field="start" type="time" value="${window.AppCore.escapeHtml(slot.start || '')}"></label>
                 <label><span>До</span><input data-slot-field="end" type="time" value="${window.AppCore.escapeHtml(slot.end || '')}"></label>
-                <label><span>Социальный тариф</span><select data-slot-field="isSocial"><option value="" ${!slot.isSocial && !slot.audience ? 'selected' : ''}>Не указано</option><option value="yes" ${slot.isSocial === 'yes' || slot.audience === 'social' ? 'selected' : ''}>Да</option><option value="no" ${slot.isSocial === 'no' || slot.audience === 'regular' ? 'selected' : ''}>Нет</option></select></label>
+                <label><span>Социальный тариф</span><select data-slot-field="isSocial"><option value="no" ${slot.isSocial === 'no' || slot.audience === 'regular' || (!slot.isSocial && !slot.audience) ? 'selected' : ''}>Нет</option><option value="yes" ${slot.isSocial === 'yes' || slot.audience === 'social' ? 'selected' : ''}>Да</option></select></label>
                 <label><span>Разовое</span><input data-slot-field="singlePrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).singlePrice || '')}"></label>
                 <label><span>Соц.</span><input data-slot-field="studentPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).studentPrice || '')}"></label>
                 <label><span>Абон.</span><input data-slot-field="membershipPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).membershipPrice || '')}"></label>
@@ -436,7 +461,7 @@
             if (event.target.id === 'addPricingSlot') {
                 const gym = state.gyms.find(item => item.id === state.selectedGymId);
                 if (!gym) return;
-                const next = [...getPricingSlots(gym), { label: '', dayType: '', start: '', end: '', isSocial: '', prices: {} }];
+                const next = [...getPricingSlots(gym), { label: '', dayType: '', start: '', end: '', isSocial: 'no', prices: {} }];
                 gym.details = { ...(gym.details || {}), pricingSlots: next };
                 renderGymModal();
                 return;
@@ -470,6 +495,7 @@
         }
 
         gymOverlay.addEventListener('click', closeGymModal);
+        window.addEventListener('resize', updateCardsLayoutClass);
         setInterval(() => {
             if (state.editMode) return;
             syncGyms();
