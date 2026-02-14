@@ -6,12 +6,14 @@
         API_URL,
         GYMS_API_URL,
         EVENTS_CACHE_KEY: 'climbEventsCache',
+        GYMS_CACHE_KEY: 'climbGymsCache',
         THEME_STORAGE_KEY: 'climbTheme',
         SYNC_INTERVAL_MS: 10_000,
         SHADOW_TTL_MS: 5_000,
         UTC_PLUS_3_OFFSET_MINUTES: 3 * 60,
         MODAL_INTERACTION_LOCK_MS: 300,
         UNSURE_MARK: ' (?)',
+        // Локальный дублирующий справочник на случай, если gyms backend временно недоступен.
         defaultGymMeta: {
             'Bigwall Динамо': { image: 'icons/bigwall.png' },
             'Bigwall Гавань': { image: 'icons/bigwall.png' },
@@ -25,6 +27,7 @@
             'Tokyo': { image: 'icons/tokyo.png' },
             'ЦСКА': { image: 'icons/cska.png' }
         },
+        // Локальный дублирующий список, основной источник — backend gyms.
         defaultGymOptions: [
             'Bigwall Динамо', 'Bigwall Гавань', 'Bigwall Ривьера', 'ClimbLab Бутырская', 'ClimbLab Аминьевская',
             "Tengu's Мичуринский", "Tengu's Южная", 'Limestone', 'Rockzona', 'Tokyo', 'ЦСКА'

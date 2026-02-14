@@ -39,17 +39,19 @@
     <div id="calendar" class="grid"></div>
 </div>
 
-<button type="button" id="calendarToGymsSwipe" class="swipe-nav-zone swipe-nav-zone-up" aria-label="Свайп вверх чтобы открыть скалодромы">
-    <span>Свайп вверх: скалодромы</span>
-</button>
+<button type="button" id="calendarToGymsSwipe" class="swipe-nav-zone swipe-nav-zone-up" aria-label="Свайп вверх чтобы открыть скалодромы"></button>
 </div>
 
 <section id="gymsPage" class="page gyms-page" aria-hidden="true">
-    <h2>Скалодромы</h2>
+    <div class="gyms-page-header-row">
+        <h2>Скалодромы</h2>
+        <div class="gyms-page-actions">
+            <button type="button" id="socialPricingToggle" class="social-pricing-toggle" aria-pressed="false">Социальный режим</button>
+            <button type="button" id="gymsBackButton" class="gyms-back-button" onpointerdown="openCalendarPage()">К календарю</button>
+        </div>
+    </div>
     <div id="gymsCards" class="gyms-cards"></div>
-    <button type="button" id="gymsToCalendarSwipe" class="swipe-nav-zone swipe-nav-zone-down" aria-label="Свайп вниз чтобы вернуться к календарю">
-        <span>Свайп вниз: календарь</span>
-    </button>
+    <button type="button" id="gymsToCalendarSwipe" class="swipe-nav-zone swipe-nav-zone-up" aria-label="Свайп вверх чтобы вернуться к календарю"></button>
 </section>
 
 </div>
@@ -114,7 +116,6 @@
         </button>
     </div>
     <div id="gymModalBody"></div>
-    <button type="button" id="saveGymButton" class="gym-save-button">Сохранить</button>
 </div>
 
 <script src="scripts/common/core.js"></script>
