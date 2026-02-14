@@ -17,6 +17,7 @@
 <body>
 
 <div class="container">
+<div id="calendarPage" class="page active">
 <div class="profile-card">
 <input type="text" id="userName" class="profile-name-input" placeholder="Адам Ондра">
 </div>
@@ -26,14 +27,30 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
 </button>
 <h2 id="monthTitle"></h2>
+<div class="calendar-header-actions">
+<button type="button" class="gyms-open-button" onpointerdown="openGymsPage()">Скалодромы</button>
 <button class="icon-button" onpointerdown="shiftMonthBy(1)" aria-label="Следующий месяц">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
 </button>
+</div>
 </div>
 
 <div id="calendarWrap" class="calendar-wrap">
     <div id="calendar" class="grid"></div>
 </div>
+
+<button type="button" id="calendarToGymsSwipe" class="swipe-nav-zone swipe-nav-zone-up" aria-label="Свайп вверх чтобы открыть скалодромы">
+    <span>Свайп вверх: скалодромы</span>
+</button>
+</div>
+
+<section id="gymsPage" class="page gyms-page" aria-hidden="true">
+    <h2>Скалодромы</h2>
+    <div id="gymsCards" class="gyms-cards"></div>
+    <button type="button" id="gymsToCalendarSwipe" class="swipe-nav-zone swipe-nav-zone-down" aria-label="Свайп вниз чтобы вернуться к календарю">
+        <span>Свайп вниз: календарь</span>
+    </button>
+</section>
 
 </div>
 
@@ -70,6 +87,7 @@
 </div>
 
 <div class="overlay" id="overlay"></div>
+<div class="overlay" id="gymOverlay"></div>
 
 <div id="modal">
 <h3 id="modalDateTitle"></h3>
@@ -88,12 +106,24 @@
 </div>
 </div>
 
+<div id="gymModal" class="gym-modal">
+    <div class="gym-modal-header">
+        <h3 id="gymModalTitle"></h3>
+        <button type="button" id="gymEditToggle" class="icon-button" aria-label="Редактировать">
+            ✎
+        </button>
+    </div>
+    <div id="gymModalBody"></div>
+    <button type="button" id="saveGymButton" class="gym-save-button">Сохранить</button>
+</div>
+
 <script src="scripts/common/core.js"></script>
 <script src="scripts/calendar/config.js"></script>
 <script src="scripts/calendar/data.js"></script>
 <script src="scripts/calendar/ui.js"></script>
 <script src="scripts/calendar/render.js"></script>
 <script src="scripts/calendar/controller.js"></script>
+<script src="scripts/gyms.js"></script>
 <script src="scripts/app.js"></script>
 
 <script src="scripts/chat/config.js"></script>
