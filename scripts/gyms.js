@@ -22,10 +22,16 @@
 
     const sections = [
         { key: 'contacts', label: 'Контакты', fields: [['workHours', 'Время работы', 'text'], ['address', 'Адрес', 'text'], ['mapUrl', 'Ссылка на Yandex Maps', 'url']] },
-        { key: 'gymInfo', label: 'Инфа по скалодрому', fields: [['routesCount', 'Кол-во трасс', 'number'], ['rerouteCycleDays', 'Full перекрутка (дней)', 'number'], ['popularity', 'Популярность (1-10)', 'number'], ['ventilation', 'Вентиляция (1-10)', 'number'], ['boards', 'Наличие досок (каких)', 'text']] },
+        { key: 'gymInfo', label: 'Инфа по скалодрому', fields: [['routesCount', 'Кол-во трасс', 'number'], ['rerouteCycleDays', 'Full перекрутка (дней)', 'number'], ['popularity', 'Популярность (1-10)', 'number'], ['ventilation', 'Вентиляция (1-10)', 'number'], ['boards', 'Доски', 'text']] },
         { key: 'ofpInventory', label: 'ОФП инвентарь', fields: [['benchPress', 'Жим лежа', 'checkbox'], ['platesRack', 'Стойка блинов', 'checkbox'], ['weightedVest', 'Жилет с весом', 'checkbox'], ['dipBelt', 'Пояс с цепью', 'checkbox'], ['campusBoard', 'Кампусборд', 'checkbox']] },
-        { key: 'infrastructure', label: 'Инфраструктура', fields: [['showers', 'Душевые', 'checkbox'], ['cafeInside', 'Кафе в зале', 'checkbox'], ['foodNearby', 'Еда рядом', 'text'], ['extraFeatures', 'Доп. фишки', 'textarea']] }
+        { key: 'infrastructure', label: 'Инфраструктура', fields: [['showers', 'Душевые', 'checkbox'], ['cafeInside', 'Кафе в зале', 'checkbox'], ['foodNearby', 'Еда рядом', 'text'], ['extraFeatures', 'Доп. фишки', 'text']] }
     ];
+
+    const pricingTimeOptions = Array.from({ length: 24 * 4 }, (_, index) => {
+        const hours = String(Math.floor(index / 4)).padStart(2, '0');
+        const minutes = String((index % 4) * 15).padStart(2, '0');
+        return `${hours}:${minutes}`;
+    });
 
     function gymFingerprint(gym) {
         return [gym.id || gym.name || '', gym.name || '', gym.icon || '', JSON.stringify(gym.details || {})].join('|');
@@ -327,6 +333,17 @@
         return `<label><span>Стоимость</span><input data-slot-field="singlePrice" type="text" value="${window.AppCore.escapeHtml(prices.singlePrice || '')}"></label>`;
     }
 
+    function renderSlotTimeSelect(field, value) {
+        const normalizedValue = String(value || '').trim();
+        const valueForSelect = pricingTimeOptions.includes(normalizedValue) ? normalizedValue : '';
+        return renderSlotCustomSelect({
+            field,
+            value: valueForSelect,
+            placeholder: 'Не выбрано',
+            options: [{ value: '', label: 'Не выбрано' }, ...pricingTimeOptions.map(time => ({ value: time, label: time }))]
+        });
+    }
+
     function renderPricingSlots(gym) {
         const slots = getPricingSlots(gym);
         if (!state.editMode) {
@@ -353,12 +370,12 @@
             <div class="pricing-slot-item" data-slot-index="${index}">
                 <label><span>Название</span><input data-slot-field="label" type="text" value="${window.AppCore.escapeHtml(slot.label || '')}"></label>
                 <label><span>День</span>${renderSlotCustomSelect({ field: 'dayType', value: slot.dayType || '', placeholder: 'Любой', options: [{ value: '', label: 'Любой' }, { value: 'weekday', label: 'Будний' }, { value: 'weekend', label: 'Выходной' }] })}</label>
-                <label><span>С</span><input data-slot-field="start" type="time" value="${window.AppCore.escapeHtml(slot.start || '')}"></label>
-                <label><span>До</span><input data-slot-field="end" type="time" value="${window.AppCore.escapeHtml(slot.end || '')}"></label>
+                <label><span>С</span>${renderSlotTimeSelect('start', slot.start || '')}</label>
+                <label><span>До</span>${renderSlotTimeSelect('end', slot.end || '')}</label>
                 <label><span>Социальный тариф</span>${renderSlotCustomSelect({ field: 'isSocial', value: resolveSlotSocialFlag(slot) || 'no', placeholder: 'Нет', options: [{ value: 'no', label: 'Нет' }, { value: 'yes', label: 'Да' }] })}</label>
                 <label><span>Тип тарифа</span>${renderSlotCustomSelect({ field: 'tariffType', value: resolveTariffType(slot), placeholder: 'Разовое', options: [{ value: 'single', label: 'Разовое' }, { value: 'membership', label: 'Абонемент' }, { value: 'unlimited', label: 'Безлимит' }] })}</label>
                 ${renderPricingFields(slot)}
-                <button type="button" class="slot-remove" data-remove-slot="${index}">Удалить</button>
+                <button type="button" class="slot-remove" data-remove-slot="${index}" aria-label="Удалить тариф" title="Удалить тариф">🗑</button>
             </div>
         `).join('')}</div><button type="button" id="addPricingSlot" class="add-slot-button">+ Добавить тариф</button></section>`;
     }
@@ -498,8 +515,14 @@
         });
 
         gymEditToggle.addEventListener('click', async () => {
-            if (state.editMode) await saveGym();
-            state.editMode = !state.editMode;
+            if (state.editMode) {
+                const savePromise = saveGym();
+                state.editMode = false;
+                renderGymModal();
+                await savePromise;
+                return;
+            }
+            state.editMode = true;
             renderGymModal();
         });
 
@@ -507,9 +530,10 @@
             if (event.key !== 'Enter' || !state.editMode) return;
             if (event.target && event.target.tagName === 'TEXTAREA') return;
             event.preventDefault();
-            await saveGym();
+            const savePromise = saveGym();
             state.editMode = false;
             renderGymModal();
+            await savePromise;
         });
 
         gymModalBody.addEventListener('click', (event) => {
