@@ -178,14 +178,13 @@
     }
 
     function mergeServerWithOptimisticMessages(serverMessages, currentMessages) {
-        const optimisticMessages = currentMessages.filter(item => item.pending);
         const serverIds = new Set(serverMessages.map(item => item.messageId));
         const ttlMs = 60_000;
-        const now = Date.now();
-        const unresolvedOptimistic = optimisticMessages.filter((item) => {
-            if (serverIds.has(item.messageId)) return false;
-            if (!item.optimisticCreatedAt) return false;
-            return now - item.optimisticCreatedAt < ttlMs;
+        const unresolvedOptimistic = window.AppOptimistic.collectUnresolvedOptimisticItems({
+            currentItems: currentMessages,
+            serverItems: serverMessages,
+            ttlMs,
+            isResolved: (item) => serverIds.has(item.messageId)
         });
 
         return [...serverMessages, ...unresolvedOptimistic]

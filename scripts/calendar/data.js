@@ -164,11 +164,15 @@
         const blockedFingerprints = new Set(CalendarState.deletionShadows.map(item => item.fingerprint));
         const filteredServerEvents = serverEvents.filter(event => !blockedFingerprints.has(event.fingerprint));
         const serverFingerprints = new Set(serverEvents.map(event => event.fingerprint));
-        const optimisticEvents = currentEvents.filter((event) => {
-            if (!event.pending || !event.optimisticCreatedAt) return false;
-            if (serverFingerprints.has(event.fingerprint)) return false;
-            return now - event.optimisticCreatedAt < CalendarConfig.SHADOW_TTL_MS;
+
+        const optimisticEvents = window.AppOptimistic.collectUnresolvedOptimisticItems({
+            currentItems: currentEvents,
+            serverItems: serverEvents,
+            ttlMs: CalendarConfig.SHADOW_TTL_MS,
+            now,
+            isResolved: (event) => serverFingerprints.has(event.fingerprint)
         });
+
         return [...filteredServerEvents, ...optimisticEvents];
     }
 
