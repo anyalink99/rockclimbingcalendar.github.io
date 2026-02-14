@@ -14,7 +14,8 @@ const chatState = {
     open: false,
     loading: false,
     syncTimerId: null,
-    readBlockedByCors: false
+    readBlockedByCors: false,
+    usingReadFallback: false
 };
 
 const chatPanelElement = document.getElementById('chatPanel');
