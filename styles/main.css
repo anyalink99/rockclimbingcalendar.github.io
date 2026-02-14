@@ -756,6 +756,7 @@ button {
 
 .gyms-page h2 {
     margin-top: 0;
+    font-size: clamp(1.55rem, 2.8vw, 2rem);
 }
 
 .gym-card {
@@ -814,6 +815,11 @@ button {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.gym-modal-header h3 {
+    margin: 0;
+    font-size: clamp(1.25rem, 2.3vw, 1.65rem);
 }
 
 .gym-modal-section h4 {
@@ -979,6 +985,7 @@ button {
     display: grid;
     gap: 8px;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    align-items: end;
 }
 
 .pricing-slot-item label {
@@ -999,11 +1006,37 @@ button {
     display: none;
 }
 
-.slot-remove,
 .add-slot-button {
     margin: 0;
     padding: 7px 9px;
     font-size: 0.8rem;
+}
+
+.add-slot-button {
+    margin-top: 10px;
+}
+
+.slot-remove {
+    margin: 0;
+    margin-left: auto;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, #ff4d4d 70%, var(--border));
+    background: color-mix(in srgb, #ff4d4d 16%, var(--secondary-bg));
+    color: #ff4d4d;
+    font-size: 0.95rem;
+    line-height: 1;
+    grid-column: 1 / -1;
+    justify-self: end;
+}
+
+.slot-remove:hover {
+    background: color-mix(in srgb, #ff4d4d 24%, var(--secondary-bg));
 }
 
 .gym-pricing-readonly {
