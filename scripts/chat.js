@@ -9,7 +9,7 @@ const CHAT_SYNC_INTERVAL_MS = 7_000;
 const CHAT_CACHE_KEY = 'chatMessagesCacheV1';
 const CHAT_CACHE_LIMIT = 200;
 const CHAT_TOP_AUTOLOAD_THRESHOLD = 40;
-const CHAT_NEW_MARK_MS = 5_000;
+const CHAT_AUTO_STICKY_THRESHOLD = 24;
 
 const chatState = {
     messages: [],
@@ -20,7 +20,7 @@ const chatState = {
     syncTimerId: null,
     readBlockedByCors: false,
     usingReadFallback: false,
-    recentMessageIds: new Set()
+    renderedMessageIds: new Set()
 };
 
 const chatPanelElement = document.getElementById('chatPanel');
@@ -56,16 +56,6 @@ function toggleChatPanel(forceOpen) {
             if (chatState.open) refreshChat();
         }, CHAT_SYNC_INTERVAL_MS);
     }
-}
-
-
-function markMessageAsRecent(messageId) {
-    if (!messageId) return;
-    chatState.recentMessageIds.add(messageId);
-    setTimeout(() => {
-        chatState.recentMessageIds.delete(messageId);
-        if (chatState.open) renderChatMessages();
-    }, CHAT_NEW_MARK_MS);
 }
 
 function parseStructuredChatText(rawText) {
@@ -214,7 +204,8 @@ async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
         return {
             items: normalizeChatMessages(data.items || []),
             nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
-            hasMore: Boolean(data.hasMore)
+            hasMore: Boolean(data.hasMore),
+            total: Number(data.total) || 0
         };
     } catch (error) {
         const data = await fetchChatChunkViaJsonp(params);
@@ -223,7 +214,8 @@ async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
         return {
             items: normalizeChatMessages(data.items || []),
             nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
-            hasMore: Boolean(data.hasMore)
+            hasMore: Boolean(data.hasMore),
+            total: Number(data.total) || 0
         };
     }
 }
@@ -254,7 +246,7 @@ async function refreshChat(initial = false) {
     try {
         if (initial) {
             const chunk = await fetchChatChunk(0);
-            chatState.messages = chunk.items.slice(-CHAT_CACHE_LIMIT);
+            chatState.messages = chunk.items;
             chatState.offset = chunk.nextOffset;
             chatState.hasMore = chunk.hasMore;
             renderChatMessages({ stickToBottom: true });
@@ -263,18 +255,18 @@ async function refreshChat(initial = false) {
         }
 
         const existingIds = new Set(chatState.messages.map(item => item.messageId));
-        const latestChunk = await fetchChatChunk(0, Math.max(chatState.messages.length + CHAT_BATCH_SIZE, CHAT_BATCH_SIZE));
-        const fresh = latestChunk.items.filter(item => !existingIds.has(item.messageId));
+        const latestChunk = await fetchChatChunk(0, CHAT_BATCH_SIZE);
+        const freshServerItems = latestChunk.items.filter(item => !existingIds.has(item.messageId));
 
-        if (fresh.length || latestChunk.items.length !== chatState.messages.length) {
-            fresh.forEach(item => markMessageAsRecent(item.messageId));
-            chatState.messages = latestChunk.items.slice(-CHAT_CACHE_LIMIT);
-            chatState.offset = latestChunk.nextOffset;
-            renderChatMessages({ stickToBottom: true });
+        if (freshServerItems.length) {
+            const wasNearBottom = isChatNearBottom();
+            chatState.messages = mergeServerWithOptimisticMessages(latestChunk.items, chatState.messages);
+            chatState.offset += freshServerItems.length;
+            renderChatMessages({ stickToBottom: wasNearBottom });
             saveChatCache();
         }
 
-        chatState.hasMore = latestChunk.hasMore;
+        chatState.hasMore = latestChunk.total > 0 ? chatState.offset < latestChunk.total : latestChunk.hasMore;
     } catch (error) {
         handleChatReadError(error);
         console.error(error);
@@ -291,8 +283,7 @@ async function loadOlderChatMessages() {
     try {
         const chunk = await fetchChatChunk(chatState.offset);
         chatState.messages = [...chunk.items, ...chatState.messages]
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .slice(-CHAT_CACHE_LIMIT);
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         chatState.offset = chunk.nextOffset;
         chatState.hasMore = chunk.hasMore;
         renderChatMessages();
@@ -324,22 +315,37 @@ function renderMessageParts(parts) {
 function renderChatMessages({ stickToBottom = false } = {}) {
     if (!chatMessagesElement) return;
 
+    const previousScrollTop = chatMessagesElement.scrollTop;
+    const previousRenderedIds = chatState.renderedMessageIds;
+    const nextRenderedIds = new Set();
+
     if (!chatState.messages.length) {
         chatMessagesElement.innerHTML = '<div class="chat-message-item">Пока сообщений нет.</div>';
         return;
     }
 
-    chatMessagesElement.innerHTML = chatState.messages.map(message => `
-        <div class="chat-message-item${chatState.recentMessageIds.has(message.messageId) ? " chat-message-item-new" : ""}">
+    chatMessagesElement.innerHTML = chatState.messages.map(message => {
+        nextRenderedIds.add(message.messageId);
+        const isNew = previousRenderedIds.has(message.messageId) ? '' : ' is-new';
+        return `
+        <div class="chat-message-item${isNew}">
             <div class="chat-message-meta">
                 <strong>${escapeHtml(message.author)}</strong>
                 <span>${escapeHtml(formatChatDate(message.date))}</span>
             </div>
             <div class="chat-message-text">${renderMessageParts(message.parts || [{ type: 'text', text: message.text }])}</div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 
-    if (stickToBottom) chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+    chatState.renderedMessageIds = nextRenderedIds;
+
+    if (stickToBottom) {
+        chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+        return;
+    }
+
+    chatMessagesElement.scrollTop = previousScrollTop;
 }
 
 function formatChatDate(dateValue) {
@@ -355,16 +361,18 @@ async function sendChatMessage() {
     const text = chatMessageInputElement.value.trim();
     if (!text) return;
 
+    const optimisticMessageId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const optimisticMessage = {
-        messageId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        messageId: optimisticMessageId,
         date: new Date().toISOString(),
         author,
         text,
-        parts: [{ type: 'text', text }]
+        parts: [{ type: 'text', text }],
+        pending: true,
+        optimisticCreatedAt: Date.now()
     };
 
-    markMessageAsRecent(optimisticMessage.messageId);
-    chatState.messages = [...chatState.messages, optimisticMessage].slice(-CHAT_CACHE_LIMIT);
+    chatState.messages = [...chatState.messages, optimisticMessage];
     renderChatMessages({ stickToBottom: true });
     saveChatCache();
     chatMessageInputElement.value = '';
@@ -374,6 +382,7 @@ async function sendChatMessage() {
             action: 'chat_send',
             sheet: CHAT_SHEET_NAME,
             chat_name: CHAT_NAME,
+            message_id: optimisticMessageId,
             author,
             text
         });
@@ -405,6 +414,26 @@ async function sendChatMessage() {
         alert('Не удалось отправить сообщение. Попробуй ещё раз.');
         console.error(error);
     }
+}
+
+function mergeServerWithOptimisticMessages(serverMessages, currentMessages) {
+    const optimisticMessages = currentMessages.filter(item => item.pending);
+    const serverIds = new Set(serverMessages.map(item => item.messageId));
+    const ttlMs = 60_000;
+    const now = Date.now();
+    const unresolvedOptimistic = optimisticMessages.filter((item) => {
+        if (serverIds.has(item.messageId)) return false;
+        if (!item.optimisticCreatedAt) return false;
+        return now - item.optimisticCreatedAt < ttlMs;
+    });
+
+    return [...serverMessages, ...unresolvedOptimistic]
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+function isChatNearBottom() {
+    const distance = chatMessagesElement.scrollHeight - chatMessagesElement.scrollTop - chatMessagesElement.clientHeight;
+    return distance <= CHAT_AUTO_STICKY_THRESHOLD;
 }
 
 function maybeLoadOlderOnScroll() {
