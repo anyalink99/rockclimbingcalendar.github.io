@@ -150,10 +150,10 @@
     async function initializeCalendarApp() {
         window.AppCore.initializeNameInput(CalendarDom.userName);
         CalendarUI.initializeThemeSwitcher();
-        await loadGymCatalog();
+        initializeCalendar();
+        loadGymCatalog();
         CalendarUI.initializeModalControls();
         CalendarUI.bindModalEventGuards();
-        initializeCalendar();
         setInterval(syncChanges, CalendarConfig.SYNC_INTERVAL_MS);
     }
 
