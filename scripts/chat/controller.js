@@ -213,6 +213,12 @@
         }
     }
 
+
+    function openGymFromReference(reference) {
+        if (!window.GymsPage || typeof window.GymsPage.openGymModalByReference !== 'function') return;
+        window.GymsPage.openGymModalByReference(reference);
+    }
+
     function maybeLoadOlderOnScroll() {
         if (!ChatState.open || ChatState.loading || !ChatState.hasMore) return;
         if (ChatDom.messages.scrollTop <= ChatConfig.CHAT_TOP_AUTOLOAD_THRESHOLD) {
@@ -260,6 +266,12 @@
         });
 
         ChatDom.messages.addEventListener('scroll', maybeLoadOlderOnScroll);
+        ChatDom.messages.addEventListener('click', (event) => {
+            const gymRefNode = event.target.closest('[data-gym-ref]');
+            if (!gymRefNode) return;
+            event.preventDefault();
+            openGymFromReference(gymRefNode.getAttribute('data-gym-ref'));
+        });
 
         ChatDom.sendButton.addEventListener('click', (event) => {
             event.preventDefault();

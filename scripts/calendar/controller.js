@@ -121,6 +121,12 @@
         }
     }
 
+
+    function openGymByReference(reference) {
+        if (!window.GymsPage || typeof window.GymsPage.openGymModalByReference !== 'function') return;
+        window.GymsPage.openGymModalByReference(reference);
+    }
+
     function shiftMonthBy(step) {
         CalendarDom.calendarWrap.classList.remove('slide-left', 'slide-right');
         CalendarDom.monthTitle.classList.remove('slide-left', 'slide-right');
@@ -162,5 +168,6 @@
     window.openModal = CalendarRender.openModal;
     window.shiftMonthBy = shiftMonthBy;
     window.cycleTheme = CalendarUI.cycleTheme;
+    window.openGymByReference = openGymByReference;
     window.CalendarController = { initializeCalendarApp };
 })();

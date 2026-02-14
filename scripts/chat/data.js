@@ -7,14 +7,14 @@
         if (!trimmed) return [];
 
         if (!(trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-            return [{ type: 'text', text: rawText }];
+            return withGymReferenceParts([{ type: 'text', text: rawText }]);
         }
 
         try {
             const normalized = trimmed.replace(/\bNone\b/g, 'null');
             const parsed = JSON.parse(normalized.replace(/'/g, '"'));
             if (!Array.isArray(parsed)) {
-                return [{ type: 'text', text: rawText }];
+                return withGymReferenceParts([{ type: 'text', text: rawText }]);
             }
 
             const chunks = [];
@@ -42,10 +42,24 @@
                 chunks.push({ type: 'text', text: itemText });
             });
 
-            return chunks.length ? chunks : [{ type: 'text', text: rawText }];
+            return withGymReferenceParts(chunks.length ? chunks : [{ type: 'text', text: rawText }]);
         } catch (error) {
-            return [{ type: 'text', text: rawText }];
+            return withGymReferenceParts([{ type: 'text', text: rawText }]);
         }
+    }
+
+
+    function withGymReferenceParts(parts) {
+        const expanded = [];
+        parts.forEach((part) => {
+            if (part.type !== 'text') {
+                expanded.push(part);
+                return;
+            }
+            const chunks = window.AppCore.splitTextByGymReferences(part.text || '');
+            expanded.push(...(chunks.length ? chunks : [{ type: 'text', text: part.text || '' }]));
+        });
+        return expanded;
     }
 
     function normalizeChatMessages(rawItems) {

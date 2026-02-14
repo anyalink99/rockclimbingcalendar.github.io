@@ -22,7 +22,7 @@
     };
 
     const sections = [
-        { key: 'contacts', label: 'Контакты', fields: [['workHours', 'Время работы', 'text'], ['address', 'Адрес', 'text'], ['mapUrl', 'Ссылка на Yandex Maps', 'url']] },
+        { key: 'contacts', label: 'Контакты', fields: [['workHours', 'Время работы', 'text'], ['address', 'Адрес', 'text'], ['mapUrl', 'Ссылка на Yandex Maps', 'url'], ['clickableRefs', 'Кликабельные референсы', 'text']] },
         { key: 'gymInfo', label: 'Инфа по скалодрому', fields: [['routesCount', 'Кол-во трасс', 'number'], ['rerouteCycleDays', 'Full перекрутка (дней)', 'number'], ['popularity', 'Популярность (1-10)', 'number'], ['ventilation', 'Вентиляция (1-10)', 'number'], ['boards', 'Доски', 'text']] },
         { key: 'ofpInventory', label: 'ОФП инвентарь', fields: [['benchPress', 'Жим лежа', 'checkbox'], ['platesRack', 'Стойка блинов', 'checkbox'], ['weightedVest', 'Жилет с весом', 'checkbox'], ['dipBelt', 'Пояс с цепью', 'checkbox'], ['campusBoard', 'Кампусборд', 'checkbox']] },
         { key: 'infrastructure', label: 'Инфраструктура', fields: [['showers', 'Душевые', 'checkbox'], ['cafeInside', 'Кафе в зале', 'checkbox'], ['foodNearby', 'Еда рядом', 'text'], ['extraFeatures', 'Доп. фишки', 'text']] }
@@ -47,11 +47,14 @@
         return rawItems.map((item) => {
             const id = String(item.id || item.name || '').trim();
             const name = String(item.name || id).trim();
+            const details = item.details && typeof item.details === 'object' ? item.details : {};
+            const contacts = details.contacts && typeof details.contacts === 'object' ? details.contacts : {};
+            const normalizedRefs = window.AppCore.normalizeGymReferences(contacts.clickableRefs || name, name).join(', ');
             return withFingerprint({
                 id: id || name,
                 name,
                 icon: String(item.icon || '').trim(),
-                details: item.details && typeof item.details === 'object' ? item.details : {},
+                details: { ...details, contacts: { ...contacts, clickableRefs: normalizedRefs } },
                 pending: Boolean(item.pending),
                 optimisticCreatedAt: Number(item.optimisticCreatedAt || 0)
             });
@@ -532,6 +535,24 @@
         document.body.style.overflow = '';
     }
 
+    function openGymModalByName(gymName) {
+        const targetName = String(gymName || '').trim().toLowerCase();
+        if (!targetName) return false;
+        const gym = state.gyms.find(item => item.name.trim().toLowerCase() === targetName);
+        if (!gym) return false;
+        openGymModal(gym.id);
+        return true;
+    }
+
+    function openGymModalByReference(reference) {
+        const matched = window.AppCore.resolveGymByReference(reference);
+        if (!matched) return false;
+        const gym = state.gyms.find(item => item.id === matched.id) || state.gyms.find(item => item.name === matched.name);
+        if (!gym) return false;
+        openGymModal(gym.id);
+        return true;
+    }
+
     function bindSwipe(element, direction, callback) {
         if (!element) return;
         let startY = null;
@@ -687,7 +708,7 @@
 
     window.openGymsPage = () => setPage(true);
     window.openCalendarPage = () => setPage(false);
-    window.GymsPage = { initializeGymsPage, refreshFromCalendarEvents, syncGyms };
+    window.GymsPage = { initializeGymsPage, refreshFromCalendarEvents, syncGyms, openGymModalByName, openGymModalByReference };
 })();
 
 if (window.GymsPage && typeof window.GymsPage.initializeGymsPage === 'function') {
