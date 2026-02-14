@@ -1,6 +1,6 @@
 # Rock Climbing Calendar
 
-Линк на прод: https://anyalink99.github.io/rockclimbingcalendar.github.io/
+## Линк на прод: https://anyalink99.github.io/rockclimbingcalendar.github.io/
 
 ## Что это
 
