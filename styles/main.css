@@ -793,7 +793,7 @@ button {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -45%) scale(0.97);
-    max-height: 86vh;
+    max-height: 80vh;
     overflow-y: auto;
     background: var(--card-bg);
     border-radius: 15px;
@@ -851,16 +851,40 @@ button {
 .social-pricing-toggle {
     margin: 0;
     font-size: 0.82rem;
-    padding: 7px 10px;
+    padding: 7px 12px;
     border-radius: 999px;
     background: var(--secondary-bg);
     border: 1px solid var(--border);
     color: var(--input-text);
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.social-pricing-toggle::before {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.social-pricing-toggle:hover {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .social-pricing-toggle.is-active {
     border-color: var(--accent);
     color: var(--accent);
+}
+
+.social-pricing-toggle.is-active::before {
+    transform: scaleX(1);
+    opacity: 1;
 }
 
 
@@ -871,9 +895,13 @@ button {
     align-content: start;
 }
 
+.gyms-cards.is-list-layout {
+    margin-top: 14px;
+}
+
 .gym-card {
-    padding: 12px;
-    min-height: 124px;
+    padding: 12px 12px 10px;
+    min-height: 108px;
     align-content: start;
 }
 
@@ -983,7 +1011,7 @@ button {
     }
 
     .gym-modal {
-        max-height: 92vh;
+        max-height: 86vh;
         padding: 14px;
     }
 }
