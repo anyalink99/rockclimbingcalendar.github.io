@@ -791,7 +791,9 @@ button {
     border: 1px solid var(--border);
     border-radius: 12px;
     color: var(--text);
-    display: grid;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 4px;
 }
 
@@ -813,6 +815,59 @@ button {
 .gym-card-meta {
     font-size: 0.82rem;
     opacity: 0.84;
+}
+
+.gym-card-pricing {
+    width: 100%;
+    margin-top: auto;
+    display: grid;
+    gap: 6px;
+    padding-top: 6px;
+}
+
+.social-mode-toggle {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--secondary-bg);
+    padding: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.social-mode-pill {
+    font-size: 0.68rem;
+    line-height: 1;
+    padding: 5px 8px;
+    border-radius: 999px;
+    color: var(--input-text);
+    opacity: 0.7;
+    transition: background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+.social-mode-toggle.is-regular .social-mode-pill-regular,
+.social-mode-toggle.is-social .social-mode-pill-social {
+    background: color-mix(in srgb, var(--accent) 18%, var(--card-bg));
+    color: var(--accent);
+    opacity: 1;
+}
+
+.gym-modal-pricing-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-top: 16px;
+    margin-bottom: 8px;
+}
+
+.gym-modal-pricing-header h4 {
+    margin: 0;
+}
+
+.social-mode-toggle-modal {
+    flex-shrink: 0;
+    margin-top: -2px;
 }
 
 .gym-card-price {
@@ -910,45 +965,6 @@ button {
     gap: 10px;
 }
 
-.social-pricing-toggle {
-    margin: 0;
-    font-size: 0.82rem;
-    padding: 7px 12px;
-    border-radius: 999px;
-    background: var(--secondary-bg);
-    border: 1px solid var(--border);
-    color: var(--input-text);
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease;
-}
-
-.social-pricing-toggle::before {
-    content: "";
-    position: absolute;
-    inset: 2px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-    transform: scaleX(0);
-    transform-origin: left center;
-    opacity: 0;
-    transition: transform 0.22s ease, opacity 0.22s ease;
-}
-
-.social-pricing-toggle:hover {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.social-pricing-toggle.is-active {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.social-pricing-toggle.is-active::before {
-    transform: scaleX(1);
-    opacity: 1;
-}
-
 
 .gyms-cards {
     display: grid;
@@ -963,8 +979,7 @@ button {
 
 .gym-card {
     padding: 12px 12px 10px;
-    min-height: 108px;
-    align-content: start;
+    min-height: 120px;
 }
 
 .gym-modal {

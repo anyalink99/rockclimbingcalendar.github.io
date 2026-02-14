@@ -7,7 +7,6 @@
     const gymModalTitle = document.getElementById('gymModalTitle');
     const gymModalBody = document.getElementById('gymModalBody');
     const gymEditToggle = document.getElementById('gymEditToggle');
-    const socialPricingToggle = document.getElementById('socialPricingToggle');
 
     const SOCIAL_FILTER_KEY = 'gymsSocialPricingEnabled';
     const DEFAULT_PRICING_TIME = '19:00';
@@ -132,7 +131,8 @@
 
     function buildGymSummary(gymName) {
         const events = (window.CalendarState && window.CalendarState.events) || [];
-        const related = events.filter(event => event.gym === gymName && !event.unsure);
+        const targetGym = String(gymName || '').trim().toLowerCase();
+        const related = events.filter((event) => String(event.gym || '').trim().toLowerCase() === targetGym && !event.unsure);
         if (!related.length) return { upcoming: '—', last: '—' };
         const now = dayjs();
         const sorted = [...related].sort((a, b) => dayjs(`${a.date}T${a.time || '00:00'}`).valueOf() - dayjs(`${b.date}T${b.time || '00:00'}`).valueOf());
@@ -166,12 +166,12 @@
     }
 
     function updateSocialModeUi() {
-        if (!socialPricingToggle) return;
-        socialPricingToggle.setAttribute('aria-pressed', String(state.socialMode));
-        socialPricingToggle.classList.toggle('is-active', state.socialMode);
-        socialPricingToggle.textContent = state.socialMode ? 'Социальный режим' : 'Обычный режим';
+        // UI переключателя рендерится динамически в модалке.
     }
 
+    function renderSocialModeToggle(source = 'modal') {
+        return `<button type="button" class="social-mode-toggle social-mode-toggle-${source} ${state.socialMode ? 'is-social' : 'is-regular'}" data-social-pricing-toggle="1" aria-pressed="${state.socialMode ? 'true' : 'false'}" title="Переключить режим цен"><span class="social-mode-pill social-mode-pill-regular">Обычный</span><span class="social-mode-pill social-mode-pill-social">Социальный</span></button>`;
+    }
 
     function resolveSlotSocialFlag(slot) {
         if (slot.isSocial === 'yes' || slot.isSocial === 'no') return slot.isSocial;
@@ -279,7 +279,7 @@
                 <span class="gym-card-title"><img src="${encodeURI(gym.icon || '')}" alt="">${window.AppCore.escapeHtml(gym.name)}</span>
                 <span class="gym-card-meta">Ближайший поход: ${window.AppCore.escapeHtml(summary.upcoming)}</span>
                 <span class="gym-card-meta">Последний поход: ${window.AppCore.escapeHtml(summary.last)}</span>
-                ${renderPricingPreview(gym)}
+                <span class="gym-card-pricing">${renderPricingPreview(gym)}</span>
             </button>`;
         }).join('');
         updateCardsLayoutClass();
@@ -389,7 +389,6 @@
         if (!state.editMode) {
             const lines = sortPricingSlotsForReadMode(getVisiblePricingSlots(gym)).map((slot) => {
                 const dayType = slot.dayType === 'weekend' ? 'Выходной' : slot.dayType === 'weekday' ? 'Будний' : '';
-                const socialFlag = resolveSlotSocialFlag(slot) === 'yes' ? 'Социальный: да' : resolveSlotSocialFlag(slot) === 'no' ? 'Социальный: нет' : '';
                 const range = [slot.start, slot.end].filter(Boolean).join('–');
                 const prices = slot.prices || {};
                 const tariffType = resolveTariffType(slot);
@@ -401,9 +400,10 @@
                     tariffType === 'unlimited' && prices.unlimitedDuration ? `Длительность: ${prices.unlimitedDuration}` : ''
                 ].filter(Boolean).join(' · ');
                 if (!chunks) return '';
-                return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range, socialFlag].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
+                return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
             }).filter(Boolean);
-            return lines.length ? `<section class="gym-modal-section"><h4>Тарифы</h4><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>` : '';
+            if (!lines.length) return '';
+            return `<section class="gym-modal-section"><div class="gym-modal-pricing-header"><h4>Тарифы</h4>${renderSocialModeToggle('modal')}</div><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>`;
         }
 
         return `<section class="gym-modal-section"><h4>Тарифы</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
@@ -688,23 +688,22 @@
 
         gymModalBody.addEventListener('click', (event) => {
             if (state.editMode) return;
+            const socialModeToggle = event.target.closest('[data-social-pricing-toggle]');
+            if (socialModeToggle) {
+                event.preventDefault();
+                state.socialMode = !state.socialMode;
+                persistSocialMode();
+                updateSocialModeUi();
+                renderCards();
+                renderGymModal();
+                return;
+            }
             const addressNode = event.target.closest('[data-address-link]');
             if (!addressNode) return;
             const gym = state.gyms.find(item => item.id === state.selectedGymId);
             const url = gym?.details?.contacts?.mapUrl;
             if (url) window.open(url, '_blank', 'noopener');
         });
-
-        if (socialPricingToggle) {
-            socialPricingToggle.addEventListener('click', () => {
-                state.socialMode = !state.socialMode;
-                persistSocialMode();
-                updateSocialModeUi();
-                renderCards();
-                if (gymModal.classList.contains('open')) renderGymModal();
-            });
-        }
-
         gymOverlay.addEventListener('click', closeGymModal);
         window.addEventListener('resize', updateCardsLayoutClass);
         setInterval(() => {
