@@ -143,7 +143,10 @@
 
     async function initializeCalendar() {
         const hasCache = CalendarData.loadCachedEvents();
-        if (hasCache) CalendarRender.renderCalendar();
+        if (hasCache) {
+            CalendarRender.renderCalendar();
+            if (window.GymsPage && typeof window.GymsPage.refreshFromCalendarEvents === 'function') window.GymsPage.refreshFromCalendarEvents();
+        }
 
         const serverEvents = await CalendarData.fetchEventsSnapshot();
         if (!serverEvents) {
