@@ -73,7 +73,6 @@ window.AppCore = {
         if (!refs.length) return [{ type: 'text', text: source }];
 
         refs.sort((a, b) => b.ref.length - a.ref.length);
-        const isWordChar = (char) => /[\p{L}\p{N}]/u.test(char);
         const parts = [];
         let cursor = 0;
         const lower = source.toLowerCase();
@@ -82,10 +81,6 @@ window.AppCore = {
             let matched = null;
             for (const candidate of refs) {
                 if (!lower.startsWith(candidate.refLower, cursor)) continue;
-                const before = cursor > 0 ? source[cursor - 1] : '';
-                const afterIndex = cursor + candidate.ref.length;
-                const after = afterIndex < source.length ? source[afterIndex] : '';
-                if ((before && isWordChar(before)) || (after && isWordChar(after))) continue;
                 matched = candidate;
                 break;
             }
