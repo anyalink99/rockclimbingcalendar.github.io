@@ -268,7 +268,7 @@
         const topPrice = chooseTopPrice(preferred);
         const title = [preferred.label || 'Тариф', dayType, range].filter(Boolean).join(', ');
         if (!topPrice) return `<span class="gym-card-meta">${window.AppCore.escapeHtml(title || 'Тариф')}</span>`;
-        return `<span class="gym-card-meta">${window.AppCore.escapeHtml(title || 'Тариф')}: ${window.AppCore.escapeHtml(topPrice)}</span>`;
+        return `<span class="gym-card-price"><span class="gym-card-price-label">${window.AppCore.escapeHtml(title || 'Тариф')}</span><strong class="gym-card-price-value">${window.AppCore.escapeHtml(topPrice)}</strong></span>`;
     }
 
     function renderCards() {
@@ -415,7 +415,15 @@
                 <label><span>Социальный тариф</span>${renderSlotCustomSelect({ field: 'isSocial', value: resolveSlotSocialFlag(slot) || 'no', placeholder: 'Нет', options: [{ value: 'no', label: 'Нет' }, { value: 'yes', label: 'Да' }] })}</label>
                 <label><span>Тип тарифа</span>${renderSlotCustomSelect({ field: 'tariffType', value: resolveTariffType(slot), placeholder: 'Разовое', options: [{ value: 'single', label: 'Разовое' }, { value: 'membership', label: 'Абонемент' }, { value: 'unlimited', label: 'Безлимит' }] })}</label>
                 ${renderPricingFields(slot)}
-                <button type="button" class="slot-remove" data-remove-slot="${index}" aria-label="Удалить тариф" title="Удалить тариф">🗑</button>
+                <button type="button" class="slot-remove" data-remove-slot="${index}" aria-label="Удалить тариф" title="Удалить тариф">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M6.8 6l.7 13h9l.7-13"></path>
+                        <path d="M10 10.5v6"></path>
+                        <path d="M14 10.5v6"></path>
+                    </svg>
+                </button>
             </div>
         `).join('')}</div><button type="button" id="addPricingSlot" class="add-slot-button">+ Добавить тариф</button></section>`;
     }
