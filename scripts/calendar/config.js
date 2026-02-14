@@ -1,6 +1,6 @@
 (function () {
     const API_URL = 'https://script.google.com/macros/s/AKfycbywsHJJz9FzGV3J3G_02MR1UAyTGdT6ldqVto82zJbSFF4C2snqAZWAH2q_kpaFbp0C/exec';
-    const GYMS_API_URL = 'https://script.google.com/macros/s/REPLACE_WITH_GYM_BACKEND/exec';
+    const GYMS_API_URL = 'https://script.google.com/macros/s/AKfycbzWKCXDBRmPbi0NZtKKybF_1Wifs657ErpVDRgI2Dm3nrWfFj4CE6vUkgIGuhHUzFyz9g/exec';
 
     window.CalendarConfig = {
         API_URL,
