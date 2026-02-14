@@ -2,7 +2,6 @@ dayjs.extend(window.dayjs_plugin_isoWeek);
 dayjs.locale('ru');
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbywsHJJz9FzGV3J3G_02MR1UAyTGdT6ldqVto82zJbSFF4C2snqAZWAH2q_kpaFbp0C/exec';
-
 const state = {
     currentMonth: dayjs(),
     events: [],

@@ -23,7 +23,14 @@ function jsonResponse(payload) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function doGet() {
+function doGet(e) {
+  const params = (e && e.parameter) || {};
+
+  if (typeof handleChatGet === 'function') {
+    const chatResponse = handleChatGet(params);
+    if (chatResponse) return jsonResponse(chatResponse);
+  }
+
   const rows = getActiveSheet().getDataRange().getValues();
   return jsonResponse(mapSheetRowsToEvents(rows));
 }
@@ -39,6 +46,12 @@ function deleteRowIfValid(sheet, rowNumber) {
 
 function doPost(e) {
   const params = JSON.parse((e.postData && e.postData.contents) || '{}');
+
+  if (typeof handleChatPost === 'function') {
+    const chatResponse = handleChatPost(params);
+    if (chatResponse) return jsonResponse(chatResponse);
+  }
+
   const sheet = getActiveSheet();
 
   if (params.action === 'delete' && params.row) {
