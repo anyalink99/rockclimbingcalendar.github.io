@@ -725,3 +725,147 @@ button {
     height: 18px;
     transform: translateX(0.5px);
 }
+
+.page {
+    display: none;
+}
+
+.page.active {
+    display: block;
+}
+
+.calendar-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gyms-open-button {
+    background: var(--secondary-bg);
+    border: 1px solid var(--border);
+    color: var(--input-text);
+    padding: 8px 12px;
+}
+
+@media (max-width: 700px) {
+    .gyms-open-button {
+        display: none;
+    }
+}
+
+.swipe-nav-zone {
+    margin-top: 8px;
+    width: 100%;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--card-bg) 70%, var(--secondary-bg));
+    color: var(--text);
+    font-size: 0.85rem;
+    opacity: 0.7;
+}
+
+@media (min-width: 701px) {
+    #calendarToGymsSwipe,
+    #gymsToCalendarSwipe {
+        display: none;
+    }
+}
+
+.gyms-page h2 {
+    margin-top: 0;
+}
+
+.gyms-cards {
+    display: grid;
+    gap: 10px;
+}
+
+.gym-card {
+    text-align: left;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    display: grid;
+    gap: 4px;
+}
+
+.gym-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+}
+
+.gym-card-title img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--input-bg);
+}
+
+.gym-card-meta {
+    font-size: 0.86rem;
+    opacity: 0.84;
+}
+
+.gym-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -45%) scale(0.97);
+    width: min(92vw, 640px);
+    max-height: 86vh;
+    overflow-y: auto;
+    background: var(--card-bg);
+    border-radius: 15px;
+    padding: 20px;
+    z-index: 12;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+.gym-modal.open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.gym-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.gym-modal-section h4 {
+    margin-bottom: 8px;
+}
+
+.gym-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.gym-modal-field {
+    display: grid;
+    gap: 4px;
+    font-size: 0.85rem;
+}
+
+.gym-modal-field textarea {
+    min-height: 70px;
+}
+
+.gym-modal-check {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 8px;
+}
+
+.gym-save-button {
+    margin-top: 10px;
+    width: 100%;
+}
