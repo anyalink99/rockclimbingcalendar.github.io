@@ -10,6 +10,7 @@ const CHAT_CACHE_KEY = 'chatMessagesCacheV1';
 const CHAT_CACHE_LIMIT = 200;
 const CHAT_TOP_AUTOLOAD_THRESHOLD = 40;
 const CHAT_AUTO_STICKY_THRESHOLD = 24;
+const CHAT_INTERACTION_LOCK_MS = 300;
 
 const chatState = {
     messages: [],
@@ -20,7 +21,10 @@ const chatState = {
     syncTimerId: null,
     readBlockedByCors: false,
     usingReadFallback: false,
-    renderedMessageIds: new Set()
+    renderedMessageIds: new Set(),
+    interactionTimeoutId: null,
+    interactionToken: 0,
+    interactionUnlockedAt: 0
 };
 
 const chatPanelElement = document.getElementById('chatPanel');
@@ -30,19 +34,40 @@ const chatMessageInputElement = document.getElementById('chatMessageInput');
 
 function toggleChatPanel(forceOpen) {
     const nextOpen = typeof forceOpen === 'boolean' ? forceOpen : !chatState.open;
-    chatState.open = nextOpen;
-    chatPanelElement.classList.toggle('open', nextOpen);
-    chatPanelElement.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
-    chatOverlayElement.classList.toggle('open', nextOpen);
-    chatOverlayElement.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
-
     if (!nextOpen) {
-        if (chatState.syncTimerId) {
-            clearInterval(chatState.syncTimerId);
-            chatState.syncTimerId = null;
-        }
+        closeChatPanel();
         return;
     }
+
+    openChatPanel();
+}
+
+function isChatInteractionLocked() {
+    return Date.now() < chatState.interactionUnlockedAt;
+}
+
+function lockChatInteraction() {
+    if (chatState.interactionTimeoutId) {
+        clearTimeout(chatState.interactionTimeoutId);
+        chatState.interactionTimeoutId = null;
+    }
+
+    chatState.interactionToken += 1;
+    const token = chatState.interactionToken;
+    chatState.interactionUnlockedAt = Date.now() + CHAT_INTERACTION_LOCK_MS;
+    chatState.interactionTimeoutId = setTimeout(() => {
+        if (token !== chatState.interactionToken) return;
+        chatState.interactionTimeoutId = null;
+    }, CHAT_INTERACTION_LOCK_MS);
+}
+
+function openChatPanel() {
+    chatState.open = true;
+    chatPanelElement.classList.add('open');
+    chatPanelElement.setAttribute('aria-hidden', 'false');
+    chatOverlayElement.classList.add('open');
+    chatOverlayElement.setAttribute('aria-hidden', 'false');
+    lockChatInteraction();
 
     if (!chatState.messages.length) {
         refreshChat(true);
@@ -55,6 +80,26 @@ function toggleChatPanel(forceOpen) {
         chatState.syncTimerId = setInterval(() => {
             if (chatState.open) refreshChat();
         }, CHAT_SYNC_INTERVAL_MS);
+    }
+}
+
+function closeChatPanel() {
+    chatState.interactionToken += 1;
+    chatState.interactionUnlockedAt = 0;
+    if (chatState.interactionTimeoutId) {
+        clearTimeout(chatState.interactionTimeoutId);
+        chatState.interactionTimeoutId = null;
+    }
+
+    chatState.open = false;
+    chatPanelElement.classList.remove('open');
+    chatPanelElement.setAttribute('aria-hidden', 'true');
+    chatOverlayElement.classList.remove('open');
+    chatOverlayElement.setAttribute('aria-hidden', 'true');
+
+    if (chatState.syncTimerId) {
+        clearInterval(chatState.syncTimerId);
+        chatState.syncTimerId = null;
     }
 }
 
@@ -446,7 +491,8 @@ function maybeLoadOlderOnScroll() {
 chatOverlayElement.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    toggleChatPanel(false);
+    if (isChatInteractionLocked()) return;
+    closeChatPanel();
 });
 
 chatOverlayElement.addEventListener('pointerdown', (event) => {
