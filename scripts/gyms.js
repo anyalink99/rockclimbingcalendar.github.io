@@ -191,7 +191,10 @@
 
     function chooseTopPrice(slot) {
         const prices = slot.prices || {};
-        return prices.singlePrice || prices.membershipPrice || prices.unlimitedPrice || prices.studentPrice || '';
+        const tariffType = resolveTariffType(slot);
+        if (tariffType === 'membership') return prices.membershipPrice || prices.singlePrice || '';
+        if (tariffType === 'unlimited') return prices.unlimitedPrice || '';
+        return prices.singlePrice || prices.membershipPrice || prices.unlimitedPrice || '';
     }
 
     function pickBestSlot(slots) {
@@ -281,12 +284,47 @@
                 return `<div class="gym-modal-static"><span>${label}</span><strong ${mapUrl ? 'class="gym-address-link" data-address-link="1"' : ''}>${window.AppCore.escapeHtml(String(value))}</strong></div>`;
             }
             if (!String(value || '').trim()) return '';
-            return `<div class="gym-modal-static"><span>${label}</span><strong>${window.AppCore.escapeHtml(type === 'checkbox' ? 'Да' : String(value))}</strong></div>`;
+            if (type === 'checkbox') return `<div class="gym-modal-static gym-modal-static-chip"><strong>${window.AppCore.escapeHtml(label)}</strong></div>`;
+            return `<div class="gym-modal-static"><span>${label}</span><strong>${window.AppCore.escapeHtml(String(value))}</strong></div>`;
         }
 
         if (type === 'checkbox') return `<label class="gym-modal-field gym-modal-check"><span>${label}</span><input data-section="${section.key}" data-name="${name}" type="checkbox" class="uncertain-checkbox" ${value ? 'checked' : ''}></label>`;
         if (type === 'textarea') return `<label class="gym-modal-field"><span>${label}</span><textarea data-section="${section.key}" data-name="${name}">${window.AppCore.escapeHtml(value || '')}</textarea></label>`;
         return `<label class="gym-modal-field"><span>${label}</span><input data-section="${section.key}" data-name="${name}" type="${type}" value="${window.AppCore.escapeHtml(value || '')}"></label>`;
+    }
+
+    function resolveTariffType(slot) {
+        if (slot.tariffType) return slot.tariffType;
+        const prices = slot.prices || {};
+        if (prices.membershipPrice) return 'membership';
+        if (prices.unlimitedPrice) return 'unlimited';
+        return 'single';
+    }
+
+    function renderSlotCustomSelect({ field, value, options, placeholder }) {
+        const selected = options.find(option => option.value === value) || null;
+        return `<div class="custom-select pricing-slot-select" data-slot-select="${window.AppCore.escapeHtml(field)}">
+            <input type="hidden" data-slot-field="${window.AppCore.escapeHtml(field)}" value="${window.AppCore.escapeHtml(value || '')}">
+            <button type="button" class="custom-select-trigger" data-slot-select-trigger="1" aria-expanded="false">
+                <span class="custom-select-value">${window.AppCore.escapeHtml((selected && selected.label) || placeholder)}</span>
+                <span class="custom-select-arrow">▾</span>
+            </button>
+            <div class="custom-select-menu" data-slot-select-menu="1">${options.map(option => `<button type="button" class="custom-select-option ${option.value === value ? 'active' : ''}" data-slot-select-option="${window.AppCore.escapeHtml(option.value)}">${window.AppCore.escapeHtml(option.label)}</button>`).join('')}</div>
+        </div>`;
+    }
+
+    function renderPricingFields(slot) {
+        const prices = slot.prices || {};
+        const tariffType = resolveTariffType(slot);
+        if (tariffType === 'membership') {
+            return `<label><span>Цена за посещение</span><input data-slot-field="membershipPrice" type="text" value="${window.AppCore.escapeHtml(prices.membershipPrice || '')}"></label>
+                <label><span>Кол-во посещений</span><input data-slot-field="membershipVisits" type="number" min="1" step="1" value="${window.AppCore.escapeHtml(prices.membershipVisits || '')}"></label>`;
+        }
+        if (tariffType === 'unlimited') {
+            return `<label><span>Стоимость</span><input data-slot-field="unlimitedPrice" type="text" value="${window.AppCore.escapeHtml(prices.unlimitedPrice || '')}"></label>
+                <label><span>Длительность</span><input data-slot-field="unlimitedDuration" type="text" value="${window.AppCore.escapeHtml(prices.unlimitedDuration || '')}" placeholder="например, 30 дней"></label>`;
+        }
+        return `<label><span>Стоимость</span><input data-slot-field="singlePrice" type="text" value="${window.AppCore.escapeHtml(prices.singlePrice || '')}"></label>`;
     }
 
     function renderPricingSlots(gym) {
@@ -297,7 +335,14 @@
                 const socialFlag = resolveSlotSocialFlag(slot) === 'yes' ? 'Социальный: да' : resolveSlotSocialFlag(slot) === 'no' ? 'Социальный: нет' : '';
                 const range = [slot.start, slot.end].filter(Boolean).join('–');
                 const prices = slot.prices || {};
-                const chunks = [prices.singlePrice ? `Разовое: ${prices.singlePrice}` : '', prices.studentPrice ? `Соц: ${prices.studentPrice}` : '', prices.membershipPrice ? `Абон: ${prices.membershipPrice}` : '', prices.unlimitedPrice ? `Безлим: ${prices.unlimitedPrice}` : ''].filter(Boolean).join(' · ');
+                const tariffType = resolveTariffType(slot);
+                const chunks = [
+                    tariffType === 'single' && prices.singlePrice ? `Разовое: ${prices.singlePrice}` : '',
+                    tariffType === 'membership' && prices.membershipPrice ? `Абон: ${prices.membershipPrice}/посещение` : '',
+                    tariffType === 'membership' && prices.membershipVisits ? `Посещений: ${prices.membershipVisits}` : '',
+                    tariffType === 'unlimited' && prices.unlimitedPrice ? `Безлим: ${prices.unlimitedPrice}` : '',
+                    tariffType === 'unlimited' && prices.unlimitedDuration ? `Длительность: ${prices.unlimitedDuration}` : ''
+                ].filter(Boolean).join(' · ');
                 if (!chunks) return '';
                 return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range, socialFlag].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
             }).filter(Boolean);
@@ -307,14 +352,12 @@
         return `<section class="gym-modal-section"><h4>Тарифы по времени</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
             <div class="pricing-slot-item" data-slot-index="${index}">
                 <label><span>Название</span><input data-slot-field="label" type="text" value="${window.AppCore.escapeHtml(slot.label || '')}"></label>
-                <label><span>День</span><select data-slot-field="dayType"><option value="" ${!slot.dayType ? 'selected' : ''}>Любой</option><option value="weekday" ${slot.dayType === 'weekday' ? 'selected' : ''}>Будний</option><option value="weekend" ${slot.dayType === 'weekend' ? 'selected' : ''}>Выходной</option></select></label>
+                <label><span>День</span>${renderSlotCustomSelect({ field: 'dayType', value: slot.dayType || '', placeholder: 'Любой', options: [{ value: '', label: 'Любой' }, { value: 'weekday', label: 'Будний' }, { value: 'weekend', label: 'Выходной' }] })}</label>
                 <label><span>С</span><input data-slot-field="start" type="time" value="${window.AppCore.escapeHtml(slot.start || '')}"></label>
                 <label><span>До</span><input data-slot-field="end" type="time" value="${window.AppCore.escapeHtml(slot.end || '')}"></label>
-                <label><span>Социальный тариф</span><select data-slot-field="isSocial"><option value="no" ${slot.isSocial === 'no' || slot.audience === 'regular' || (!slot.isSocial && !slot.audience) ? 'selected' : ''}>Нет</option><option value="yes" ${slot.isSocial === 'yes' || slot.audience === 'social' ? 'selected' : ''}>Да</option></select></label>
-                <label><span>Разовое</span><input data-slot-field="singlePrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).singlePrice || '')}"></label>
-                <label><span>Соц.</span><input data-slot-field="studentPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).studentPrice || '')}"></label>
-                <label><span>Абон.</span><input data-slot-field="membershipPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).membershipPrice || '')}"></label>
-                <label><span>Безлим.</span><input data-slot-field="unlimitedPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).unlimitedPrice || '')}"></label>
+                <label><span>Социальный тариф</span>${renderSlotCustomSelect({ field: 'isSocial', value: resolveSlotSocialFlag(slot) || 'no', placeholder: 'Нет', options: [{ value: 'no', label: 'Нет' }, { value: 'yes', label: 'Да' }] })}</label>
+                <label><span>Тип тарифа</span>${renderSlotCustomSelect({ field: 'tariffType', value: resolveTariffType(slot), placeholder: 'Разовое', options: [{ value: 'single', label: 'Разовое' }, { value: 'membership', label: 'Абонемент' }, { value: 'unlimited', label: 'Безлимит' }] })}</label>
+                ${renderPricingFields(slot)}
                 <button type="button" class="slot-remove" data-remove-slot="${index}">Удалить</button>
             </div>
         `).join('')}</div><button type="button" id="addPricingSlot" class="add-slot-button">+ Добавить тариф</button></section>`;
@@ -328,7 +371,7 @@
             const block = section.fields.map(field => createFieldMarkup(gym, section, field)).filter(Boolean).join('');
             return block ? `<section class="gym-modal-section"><h4>${section.label}</h4><div class="gym-modal-grid">${block}</div></section>` : '';
         }).join('');
-        gymModalBody.innerHTML = state.editMode ? `${renderPricingSlots(gym)}${sectionMarkup}` : `${sectionMarkup}${renderPricingSlots(gym)}`;
+        gymModalBody.innerHTML = `${renderPricingSlots(gym)}${sectionMarkup}`;
     }
 
     function collectPricingSlotsFromForm() {
@@ -337,11 +380,24 @@
         return Array.from(editor.querySelectorAll('.pricing-slot-item')).map((node) => {
             const get = (field) => String((node.querySelector(`[data-slot-field="${field}"]`) || {}).value || '').trim();
             const slot = {
-                label: get('label'), dayType: get('dayType'), start: get('start'), end: get('end'), isSocial: get('isSocial'),
-                prices: { singlePrice: get('singlePrice'), studentPrice: get('studentPrice'), membershipPrice: get('membershipPrice'), unlimitedPrice: get('unlimitedPrice') }
+                label: get('label'), dayType: get('dayType'), start: get('start'), end: get('end'), isSocial: get('isSocial'), tariffType: get('tariffType') || 'single',
+                prices: {
+                    singlePrice: get('singlePrice'),
+                    membershipPrice: get('membershipPrice'),
+                    membershipVisits: get('membershipVisits'),
+                    unlimitedPrice: get('unlimitedPrice'),
+                    unlimitedDuration: get('unlimitedDuration')
+                }
             };
             return slot;
         }).filter(slot => slot.label || slot.dayType || slot.start || slot.end || Object.values(slot.prices).some(Boolean));
+    }
+
+    function syncPricingSlotsDraftFromForm() {
+        if (!state.editMode) return;
+        const gym = state.gyms.find(item => item.id === state.selectedGymId);
+        if (!gym) return;
+        gym.details = { ...(gym.details || {}), pricingSlots: collectPricingSlotsFromForm() };
     }
 
     async function saveGym() {
@@ -459,15 +515,59 @@
         gymModalBody.addEventListener('click', (event) => {
             if (!state.editMode) return;
             if (event.target.id === 'addPricingSlot') {
+                syncPricingSlotsDraftFromForm();
                 const gym = state.gyms.find(item => item.id === state.selectedGymId);
                 if (!gym) return;
-                const next = [...getPricingSlots(gym), { label: '', dayType: '', start: '', end: '', isSocial: 'no', prices: {} }];
+                const next = [...getPricingSlots(gym), { label: '', dayType: '', start: '', end: '', isSocial: 'no', tariffType: 'single', prices: {} }];
                 gym.details = { ...(gym.details || {}), pricingSlots: next };
                 renderGymModal();
                 return;
             }
+            const trigger = event.target.closest('[data-slot-select-trigger]');
+            if (trigger) {
+                const container = trigger.closest('.custom-select');
+                if (!container) return;
+                const isOpen = container.classList.contains('open');
+                gymModalBody.querySelectorAll('.custom-select.open').forEach(node => {
+                    node.classList.remove('open');
+                    const nodeTrigger = node.querySelector('[data-slot-select-trigger]');
+                    if (nodeTrigger) nodeTrigger.setAttribute('aria-expanded', 'false');
+                });
+                if (!isOpen) {
+                    container.classList.add('open');
+                    trigger.setAttribute('aria-expanded', 'true');
+                }
+                return;
+            }
+            const option = event.target.closest('[data-slot-select-option]');
+            if (option) {
+                const container = option.closest('.custom-select');
+                if (!container) return;
+                const nextValue = option.getAttribute('data-slot-select-option') || '';
+                const input = container.querySelector('input[data-slot-field]');
+                const valueNode = container.querySelector('.custom-select-value');
+                if (input) input.value = nextValue;
+                if (valueNode) valueNode.textContent = option.textContent || '';
+                container.querySelectorAll('[data-slot-select-option]').forEach(node => node.classList.toggle('active', node === option));
+                container.classList.remove('open');
+                const localTrigger = container.querySelector('[data-slot-select-trigger]');
+                if (localTrigger) localTrigger.setAttribute('aria-expanded', 'false');
+                if (input && input.getAttribute('data-slot-field') === 'tariffType') {
+                    syncPricingSlotsDraftFromForm();
+                    renderGymModal();
+                }
+                return;
+            }
             const removeButton = event.target.closest('[data-remove-slot]');
-            if (!removeButton) return;
+            if (!removeButton) {
+                gymModalBody.querySelectorAll('.custom-select.open').forEach(node => {
+                    node.classList.remove('open');
+                    const nodeTrigger = node.querySelector('[data-slot-select-trigger]');
+                    if (nodeTrigger) nodeTrigger.setAttribute('aria-expanded', 'false');
+                });
+                return;
+            }
+            syncPricingSlotsDraftFromForm();
             const gym = state.gyms.find(item => item.id === state.selectedGymId);
             if (!gym) return;
             const idx = Number(removeButton.getAttribute('data-remove-slot'));
