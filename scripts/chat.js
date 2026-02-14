@@ -6,6 +6,10 @@ const CHAT_NAME = 'Залез? 2';
 const CHAT_SHEET_NAME = 'Chat';
 const CHAT_BATCH_SIZE = 100;
 const CHAT_SYNC_INTERVAL_MS = 7_000;
+const CHAT_CACHE_KEY = 'chatMessagesCacheV1';
+const CHAT_CACHE_LIMIT = 200;
+const CHAT_TOP_AUTOLOAD_THRESHOLD = 40;
+const CHAT_NEW_MARK_MS = 5_000;
 
 const chatState = {
     messages: [],
@@ -15,13 +19,13 @@ const chatState = {
     loading: false,
     syncTimerId: null,
     readBlockedByCors: false,
-    usingReadFallback: false
+    usingReadFallback: false,
+    recentMessageIds: new Set()
 };
 
 const chatPanelElement = document.getElementById('chatPanel');
 const chatOverlayElement = document.getElementById('chatOverlay');
 const chatMessagesElement = document.getElementById('chatMessages');
-const chatLoadMoreButtonElement = document.getElementById('chatLoadMoreButton');
 const chatMessageInputElement = document.getElementById('chatMessageInput');
 
 function toggleChatPanel(forceOpen) {
@@ -55,17 +59,76 @@ function toggleChatPanel(forceOpen) {
 }
 
 
+function markMessageAsRecent(messageId) {
+    if (!messageId) return;
+    chatState.recentMessageIds.add(messageId);
+    setTimeout(() => {
+        chatState.recentMessageIds.delete(messageId);
+        if (chatState.open) renderChatMessages();
+    }, CHAT_NEW_MARK_MS);
+}
+
+function parseStructuredChatText(rawText) {
+    if (typeof rawText !== 'string') return [];
+    const trimmed = rawText.trim();
+    if (!trimmed) return [];
+
+    if (!(trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        return [{ type: 'text', text: rawText }];
+    }
+
+    try {
+        const normalized = trimmed.replace(/\bNone\b/g, 'null');
+        const parsed = JSON.parse(normalized.replace(/'/g, '"'));
+        if (!Array.isArray(parsed)) {
+            return [{ type: 'text', text: rawText }];
+        }
+
+        const chunks = [];
+        parsed.forEach((part) => {
+            if (typeof part === 'string') {
+                if (part) chunks.push({ type: 'text', text: part });
+                return;
+            }
+            if (!part || typeof part !== 'object') return;
+
+            const itemType = String(part.type || '').toLowerCase();
+            const itemText = String(part.text || '');
+            if (!itemText) return;
+
+            if (itemType === 'link') {
+                chunks.push({ type: 'link', text: itemText, href: itemText });
+                return;
+            }
+
+            if (itemType === 'mention') {
+                chunks.push({ type: 'mention', text: itemText });
+                return;
+            }
+
+            chunks.push({ type: 'text', text: itemText });
+        });
+
+        return chunks.length ? chunks : [{ type: 'text', text: rawText }];
+    } catch (error) {
+        return [{ type: 'text', text: rawText }];
+    }
+}
 
 function normalizeChatMessages(rawItems) {
     if (!Array.isArray(rawItems)) return [];
     return rawItems
         .filter(item => item && item.author && item.text)
-        .map(item => ({
-            messageId: String(item.message_id || item.id || crypto.randomUUID()),
-            date: String(item.date || ''),
-            author: String(item.author || ''),
-            text: String(item.text || '')
-        }));
+        .map(item => {
+            const text = String(item.text || '');
+            return {
+                messageId: String(item.message_id || item.id || crypto.randomUUID()),
+                date: String(item.date || ''),
+                author: String(item.author || ''),
+                text,
+                parts: parseStructuredChatText(text)
+            };
+        });
 }
 
 function fetchChatChunkViaJsonp(params) {
@@ -98,6 +161,34 @@ function fetchChatChunkViaJsonp(params) {
         script.src = `${CHAT_API_URL}?${withCallback.toString()}`;
         document.head.appendChild(script);
     });
+}
+
+function saveChatCache() {
+    try {
+        const items = chatState.messages.slice(-CHAT_CACHE_LIMIT);
+        localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(items));
+    } catch (error) {
+        console.warn('Unable to save chat cache', error);
+    }
+}
+
+function loadChatCache() {
+    try {
+        const raw = localStorage.getItem(CHAT_CACHE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || !parsed.length) return false;
+
+        chatState.messages = normalizeChatMessages(parsed)
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .slice(-CHAT_CACHE_LIMIT);
+        chatState.offset = chatState.messages.length;
+        chatState.hasMore = true;
+        return true;
+    } catch (error) {
+        console.warn('Unable to load chat cache', error);
+        return false;
+    }
 }
 
 async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
@@ -163,10 +254,11 @@ async function refreshChat(initial = false) {
     try {
         if (initial) {
             const chunk = await fetchChatChunk(0);
-            chatState.messages = chunk.items;
+            chatState.messages = chunk.items.slice(-CHAT_CACHE_LIMIT);
             chatState.offset = chunk.nextOffset;
             chatState.hasMore = chunk.hasMore;
             renderChatMessages({ stickToBottom: true });
+            saveChatCache();
             return;
         }
 
@@ -175,13 +267,14 @@ async function refreshChat(initial = false) {
         const fresh = latestChunk.items.filter(item => !existingIds.has(item.messageId));
 
         if (fresh.length || latestChunk.items.length !== chatState.messages.length) {
-            chatState.messages = latestChunk.items;
+            fresh.forEach(item => markMessageAsRecent(item.messageId));
+            chatState.messages = latestChunk.items.slice(-CHAT_CACHE_LIMIT);
             chatState.offset = latestChunk.nextOffset;
             renderChatMessages({ stickToBottom: true });
+            saveChatCache();
         }
 
         chatState.hasMore = latestChunk.hasMore;
-        updateChatLoadMoreState();
     } catch (error) {
         handleChatReadError(error);
         console.error(error);
@@ -198,10 +291,13 @@ async function loadOlderChatMessages() {
     try {
         const chunk = await fetchChatChunk(chatState.offset);
         chatState.messages = [...chunk.items, ...chatState.messages]
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .slice(-CHAT_CACHE_LIMIT);
         chatState.offset = chunk.nextOffset;
         chatState.hasMore = chunk.hasMore;
         renderChatMessages();
+        saveChatCache();
+
         const newHeight = chatMessagesElement.scrollHeight;
         chatMessagesElement.scrollTop += (newHeight - previousHeight);
     } catch (error) {
@@ -212,36 +308,38 @@ async function loadOlderChatMessages() {
     }
 }
 
+function renderMessageParts(parts) {
+    return parts.map((part) => {
+        if (part.type === 'link') {
+            const href = escapeHtml(part.href || part.text);
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(part.text)}</a>`;
+        }
+        if (part.type === 'mention') {
+            return `<span class="chat-message-mention">${escapeHtml(part.text)}</span>`;
+        }
+        return escapeHtml(part.text || '');
+    }).join('');
+}
+
 function renderChatMessages({ stickToBottom = false } = {}) {
     if (!chatMessagesElement) return;
 
     if (!chatState.messages.length) {
         chatMessagesElement.innerHTML = '<div class="chat-message-item">Пока сообщений нет.</div>';
-        updateChatLoadMoreState();
         return;
     }
 
     chatMessagesElement.innerHTML = chatState.messages.map(message => `
-        <div class="chat-message-item">
+        <div class="chat-message-item${chatState.recentMessageIds.has(message.messageId) ? " chat-message-item-new" : ""}">
             <div class="chat-message-meta">
                 <strong>${escapeHtml(message.author)}</strong>
                 <span>${escapeHtml(formatChatDate(message.date))}</span>
             </div>
-            <div class="chat-message-text">${escapeHtml(message.text)}</div>
+            <div class="chat-message-text">${renderMessageParts(message.parts || [{ type: 'text', text: message.text }])}</div>
         </div>
     `).join('');
 
-    updateChatLoadMoreState();
     if (stickToBottom) chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
-}
-
-function updateChatLoadMoreState() {
-    chatLoadMoreButtonElement.disabled = !chatState.hasMore || chatState.loading;
-    if (chatState.loading) {
-        chatLoadMoreButtonElement.textContent = 'Загрузка...';
-    } else {
-        chatLoadMoreButtonElement.textContent = chatState.hasMore ? 'Загрузить ещё 100' : 'История загружена';
-    }
 }
 
 function formatChatDate(dateValue) {
@@ -261,11 +359,14 @@ async function sendChatMessage() {
         messageId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         date: new Date().toISOString(),
         author,
-        text
+        text,
+        parts: [{ type: 'text', text }]
     };
 
-    chatState.messages = [...chatState.messages, optimisticMessage];
+    markMessageAsRecent(optimisticMessage.messageId);
+    chatState.messages = [...chatState.messages, optimisticMessage].slice(-CHAT_CACHE_LIMIT);
     renderChatMessages({ stickToBottom: true });
+    saveChatCache();
     chatMessageInputElement.value = '';
 
     try {
@@ -300,11 +401,18 @@ async function sendChatMessage() {
     } catch (error) {
         chatState.messages = chatState.messages.filter(item => item.messageId !== optimisticMessage.messageId);
         renderChatMessages({ stickToBottom: true });
+        saveChatCache();
         alert('Не удалось отправить сообщение. Попробуй ещё раз.');
         console.error(error);
     }
 }
 
+function maybeLoadOlderOnScroll() {
+    if (!chatState.open || chatState.loading || !chatState.hasMore) return;
+    if (chatMessagesElement.scrollTop <= CHAT_TOP_AUTOLOAD_THRESHOLD) {
+        loadOlderChatMessages();
+    }
+}
 
 chatOverlayElement.addEventListener('click', (event) => {
     event.preventDefault();
@@ -321,10 +429,7 @@ chatPanelElement.addEventListener('pointerdown', (event) => {
     event.stopPropagation();
 });
 
-chatLoadMoreButtonElement.addEventListener('click', (event) => {
-    event.preventDefault();
-    loadOlderChatMessages();
-});
+chatMessagesElement.addEventListener('scroll', maybeLoadOlderOnScroll);
 
 document.getElementById('chatSendButton').addEventListener('click', (event) => {
     event.preventDefault();
@@ -338,4 +443,5 @@ chatMessageInputElement.addEventListener('keydown', (event) => {
     }
 });
 
+loadChatCache();
 renderChatMessages();
