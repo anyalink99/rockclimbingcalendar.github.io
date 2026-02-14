@@ -290,6 +290,14 @@ button {
     transition: opacity 0.16s ease;
 }
 
+#overlay {
+    z-index: 9;
+}
+
+#gymOverlay {
+    z-index: 11;
+}
+
 #modal {
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
@@ -821,6 +829,8 @@ button {
     opacity: 0;
     pointer-events: none;
     transition: transform 0.16s ease, opacity 0.16s ease;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .gym-modal.open {

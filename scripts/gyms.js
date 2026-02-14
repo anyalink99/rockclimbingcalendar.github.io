@@ -315,7 +315,7 @@
 
         if (!state.editMode) {
             if (type === 'checkbox' && !value) return '';
-            if (name === 'mapUrl') return '';
+            if (name === 'mapUrl' || name === 'clickableRefs') return '';
             if (name === 'address') {
                 const mapUrl = (((gym.details || {})[section.key] || {}).mapUrl || '').trim();
                 if (!String(value || '').trim()) return '';
@@ -532,7 +532,11 @@
     function closeGymModal() {
         gymOverlay.classList.remove('open');
         gymModal.classList.remove('open');
-        document.body.style.overflow = '';
+        const calendarModalOpen = document.getElementById('modal')?.classList.contains('open');
+        const chatPanelOpen = document.getElementById('chatPanel')?.classList.contains('open');
+        if (!calendarModalOpen && !chatPanelOpen) {
+            document.body.style.overflow = '';
+        }
     }
 
     function openGymModalByName(gymName) {
