@@ -17,7 +17,8 @@
         selectedGymId: null,
         editMode: false,
         socialMode: false,
-        gymShadows: []
+        gymShadows: [],
+        lastRenderedEditMode: false
     };
 
     const sections = [
@@ -291,6 +292,13 @@
             }
             if (!String(value || '').trim()) return '';
             if (type === 'checkbox') return `<div class="gym-modal-static gym-modal-static-chip"><strong>${window.AppCore.escapeHtml(label)}</strong></div>`;
+            if (type === 'number' && ['popularity', 'ventilation'].includes(name)) {
+                const numericValue = Number(value);
+                if (Number.isFinite(numericValue)) {
+                    const clamped = Math.max(1, Math.min(10, numericValue));
+                    return `<div class="gym-modal-static"><span>${label}</span><strong class="gym-score" style="--score:${clamped}">${window.AppCore.escapeHtml(String(value))}</strong></div>`;
+                }
+            }
             return `<div class="gym-modal-static"><span>${label}</span><strong>${window.AppCore.escapeHtml(String(value))}</strong></div>`;
         }
 
@@ -383,12 +391,15 @@
     function renderGymModal() {
         const gym = state.gyms.find(item => item.id === state.selectedGymId);
         if (!gym) return;
+        const modeChanged = state.lastRenderedEditMode !== state.editMode;
         gymModalTitle.textContent = gym.name;
         const sectionMarkup = sections.map((section) => {
             const block = section.fields.map(field => createFieldMarkup(gym, section, field)).filter(Boolean).join('');
             return block ? `<section class="gym-modal-section"><h4>${section.label}</h4><div class="gym-modal-grid">${block}</div></section>` : '';
         }).join('');
         gymModalBody.innerHTML = `${renderPricingSlots(gym)}${sectionMarkup}`;
+        if (modeChanged) animateModeSwitch();
+        state.lastRenderedEditMode = state.editMode;
     }
 
     function collectPricingSlotsFromForm() {
@@ -407,7 +418,19 @@
                 }
             };
             return slot;
-        }).filter(slot => slot.label || slot.dayType || slot.start || slot.end || Object.values(slot.prices).some(Boolean));
+        }).filter(slot => slot.label
+            || slot.dayType
+            || slot.start
+            || slot.end
+            || (slot.isSocial && slot.isSocial !== 'no')
+            || (slot.tariffType && slot.tariffType !== 'single')
+            || Object.values(slot.prices).some(Boolean));
+    }
+
+    function animateModeSwitch() {
+        gymModalBody.classList.remove('gym-modal-mode-switch');
+        void gymModalBody.offsetWidth;
+        gymModalBody.classList.add('gym-modal-mode-switch');
     }
 
     function syncPricingSlotsDraftFromForm() {
@@ -492,21 +515,21 @@
         }, { passive: true });
     }
 
-    async function initializeGymsData() {
+    function initializeGymsData() {
         const hasCache = loadCachedGyms();
         if (!hasCache) {
             state.gyms = fallbackGymsFromConfig();
             persistGyms();
         }
         renderCards();
-        await syncGyms();
+        syncGyms();
     }
 
     async function initializeGymsPage() {
         loadSocialMode();
         updateSocialModeUi();
 
-        await initializeGymsData();
+        initializeGymsData();
 
         cardsContainer.addEventListener('click', (event) => {
             const card = event.target.closest('.gym-card');
