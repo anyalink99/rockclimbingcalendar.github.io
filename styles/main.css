@@ -990,7 +990,7 @@ button {
     display: grid;
     gap: 8px;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    align-items: end;
+    align-items: start;
 }
 
 .pricing-slot-item label {
@@ -998,6 +998,10 @@ button {
     gap: 4px;
     font-size: 0.78rem;
 }
+.pricing-slot-item label span {
+    line-height: 1.2;
+}
+
 
 .pricing-slot-item .custom-select {
     width: 100%;
