@@ -906,7 +906,7 @@ button {
 }
 
 .gym-modal {
-    width: min(96vw, 760px);
+    width: min(90vw, 640px);
 }
 
 .gym-modal-grid {
@@ -987,6 +987,18 @@ button {
     font-size: 0.78rem;
 }
 
+.pricing-slot-item .custom-select {
+    width: 100%;
+}
+
+.pricing-slot-item .custom-select-menu {
+    max-height: 180px;
+}
+
+.pricing-slot-item input[type="hidden"] {
+    display: none;
+}
+
 .slot-remove,
 .add-slot-button {
     margin: 0;
@@ -1011,8 +1023,9 @@ button {
     }
 
     .gym-modal {
-        max-height: 86vh;
-        padding: 14px;
+        max-height: 78vh;
+        width: min(88vw, 520px);
+        padding: 12px;
     }
 }
 
