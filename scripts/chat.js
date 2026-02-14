@@ -55,18 +55,6 @@ function toggleChatPanel(forceOpen) {
 }
 
 
-function getChatReadUrls(params) {
-    const query = params.toString();
-    const urls = [`${CHAT_API_URL}?${query}`];
-
-    if (typeof window !== 'undefined' && typeof window.API_URL === 'string' && window.API_URL.trim()) {
-        const baseEventsUrl = window.API_URL.trim();
-        const fallbackUrl = `${baseEventsUrl}?${query}`;
-        if (!urls.includes(fallbackUrl)) urls.push(fallbackUrl);
-    }
-
-    return urls;
-}
 
 function normalizeChatMessages(rawItems) {
     if (!Array.isArray(rawItems)) return [];
@@ -80,6 +68,38 @@ function normalizeChatMessages(rawItems) {
         }));
 }
 
+function fetchChatChunkViaJsonp(params) {
+    return new Promise((resolve, reject) => {
+        const callbackName = `chatJsonp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const script = document.createElement('script');
+        const timeoutId = setTimeout(() => {
+            cleanup();
+            reject(new Error('Chat JSONP timeout'));
+        }, 10000);
+
+        function cleanup() {
+            clearTimeout(timeoutId);
+            delete window[callbackName];
+            if (script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[callbackName] = (data) => {
+            cleanup();
+            resolve(data || {});
+        };
+
+        script.onerror = () => {
+            cleanup();
+            reject(new Error('Chat JSONP failed'));
+        };
+
+        const withCallback = new URLSearchParams(params);
+        withCallback.set('callback', callbackName);
+        script.src = `${CHAT_API_URL}?${withCallback.toString()}`;
+        document.head.appendChild(script);
+    });
+}
+
 async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
     const params = new URLSearchParams({
         mode: 'chat',
@@ -89,32 +109,32 @@ async function fetchChatChunk(offset = 0, limit = CHAT_BATCH_SIZE) {
         limit: String(limit)
     });
 
-    const readUrls = getChatReadUrls(params);
-    let lastError = null;
+    const requestUrl = `${CHAT_API_URL}?${params.toString()}`;
 
-    for (const requestUrl of readUrls) {
-        try {
-            const res = await fetch(requestUrl, {
-                method: 'GET',
-                cache: 'no-store'
-            });
-            if (!res.ok) throw new Error('Chat load failed');
-            const data = await res.json();
+    try {
+        const res = await fetch(requestUrl, {
+            method: 'GET',
+            cache: 'no-store'
+        });
+        if (!res.ok) throw new Error('Chat load failed');
+        const data = await res.json();
+        chatState.readBlockedByCors = false;
 
-            chatState.readBlockedByCors = false;
-            chatState.usingReadFallback = requestUrl !== readUrls[0];
+        return {
+            items: normalizeChatMessages(data.items || []),
+            nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
+            hasMore: Boolean(data.hasMore)
+        };
+    } catch (error) {
+        const data = await fetchChatChunkViaJsonp(params);
+        chatState.readBlockedByCors = false;
 
-            return {
-                items: normalizeChatMessages(data.items || []),
-                nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
-                hasMore: Boolean(data.hasMore)
-            };
-        } catch (error) {
-            lastError = error;
-        }
+        return {
+            items: normalizeChatMessages(data.items || []),
+            nextOffset: Number(data.nextOffset) || (offset + (data.items || []).length),
+            hasMore: Boolean(data.hasMore)
+        };
     }
-
-    throw lastError || new Error('Chat load failed');
 }
 
 function handleChatReadError(error) {
@@ -123,10 +143,7 @@ function handleChatReadError(error) {
 
     if (!chatState.readBlockedByCors) {
         chatState.readBlockedByCors = true;
-        const fallbackHint = chatState.usingReadFallback
-            ? ' Current read fallback via window.API_URL is also unavailable.'
-            : ' Configure CHAT_API_URL CORS or route chat reads through the main API deployment.';
-        console.warn(`Chat GET blocked (likely CORS).${fallbackHint}`);
+        console.warn('Chat read failed via fetch and JSONP fallback. Check Apps Script deployment URL and callback support.');
     }
 
     if (chatState.syncTimerId) {
