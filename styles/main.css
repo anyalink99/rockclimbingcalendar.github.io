@@ -649,9 +649,8 @@ button {
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.chat-message-item-new {
-    border-color: var(--day-border-event);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--day-border-event) 30%, transparent);
+.chat-message-item.is-new {
+    animation: fade-scale-in 0.14s ease-out both;
 }
 
 .chat-message-meta {
