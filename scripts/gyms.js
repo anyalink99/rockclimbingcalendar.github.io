@@ -346,10 +346,10 @@
                 if (!chunks) return '';
                 return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range, socialFlag].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
             }).filter(Boolean);
-            return lines.length ? `<section class="gym-modal-section"><h4>Тарифы по времени</h4><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>` : '';
+            return lines.length ? `<section class="gym-modal-section"><h4>Тарифы</h4><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>` : '';
         }
 
-        return `<section class="gym-modal-section"><h4>Тарифы по времени</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
+        return `<section class="gym-modal-section"><h4>Тарифы</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
             <div class="pricing-slot-item" data-slot-index="${index}">
                 <label><span>Название</span><input data-slot-field="label" type="text" value="${window.AppCore.escapeHtml(slot.label || '')}"></label>
                 <label><span>День</span>${renderSlotCustomSelect({ field: 'dayType', value: slot.dayType || '', placeholder: 'Любой', options: [{ value: '', label: 'Любой' }, { value: 'weekday', label: 'Будний' }, { value: 'weekend', label: 'Выходной' }] })}</label>
