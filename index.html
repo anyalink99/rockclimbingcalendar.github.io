@@ -28,7 +28,6 @@
 </button>
 <h2 id="monthTitle"></h2>
 <div class="calendar-header-actions">
-<button type="button" class="gyms-open-button" onpointerdown="openGymsPage()">Скалодромы</button>
 <button class="icon-button" onpointerdown="shiftMonthBy(1)" aria-label="Следующий месяц">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
 </button>
@@ -39,20 +38,17 @@
     <div id="calendar" class="grid"></div>
 </div>
 
-<button type="button" id="calendarToGymsSwipe" class="swipe-nav-zone swipe-nav-zone-up" aria-label="Свайп вверх чтобы открыть скалодромы"></button>
-</div>
-
-<section id="gymsPage" class="page gyms-page" aria-hidden="true">
+<section id="gymsPage" class="page gyms-page active" aria-hidden="false">
     <div class="gyms-page-header-row">
         <h2>Скалодромы</h2>
         <div class="gyms-page-actions">
             <button type="button" id="socialPricingToggle" class="social-pricing-toggle" aria-pressed="false">Социальный режим</button>
-            <button type="button" id="gymsBackButton" class="gyms-back-button" onpointerdown="openCalendarPage()">К календарю</button>
         </div>
     </div>
     <div id="gymsCards" class="gyms-cards"></div>
-    <button type="button" id="gymsToCalendarSwipe" class="swipe-nav-zone swipe-nav-zone-up" aria-label="Свайп вверх чтобы вернуться к календарю"></button>
 </section>
+
+</div>
 
 </div>
 

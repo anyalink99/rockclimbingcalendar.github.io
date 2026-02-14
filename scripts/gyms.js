@@ -10,6 +10,7 @@
     const socialPricingToggle = document.getElementById('socialPricingToggle');
 
     const SOCIAL_FILTER_KEY = 'gymsSocialPricingEnabled';
+    const DEFAULT_PRICING_TIME = '19:00';
 
     const state = {
         gyms: [],
@@ -21,7 +22,6 @@
 
     const sections = [
         { key: 'contacts', label: 'Контакты', fields: [['workHours', 'Время работы', 'text'], ['address', 'Адрес', 'text'], ['mapUrl', 'Ссылка на Yandex Maps', 'url']] },
-        { key: 'pricing', label: 'Базовые цены', fields: [['singlePrice', 'Разовое', 'number'], ['studentPrice', 'Студенческое', 'number'], ['membershipPrice', 'Абонемент', 'number'], ['unlimitedPrice', 'Безлимит', 'number'], ['shoeRent', 'Аренда скальников', 'number']] },
         { key: 'gymInfo', label: 'Инфа по скалодрому', fields: [['routesCount', 'Кол-во трасс', 'number'], ['rerouteCycleDays', 'Full перекрутка (дней)', 'number'], ['popularity', 'Популярность (1-10)', 'number'], ['ventilation', 'Вентиляция (1-10)', 'number'], ['boards', 'Наличие досок (каких)', 'text']] },
         { key: 'ofpInventory', label: 'ОФП инвентарь', fields: [['benchPress', 'Жим лежа', 'checkbox'], ['platesRack', 'Стойка блинов', 'checkbox'], ['weightedVest', 'Жилет с весом', 'checkbox'], ['dipBelt', 'Пояс с цепью', 'checkbox'], ['campusBoard', 'Кампусборд', 'checkbox']] },
         { key: 'infrastructure', label: 'Инфраструктура', fields: [['showers', 'Душевые', 'checkbox'], ['cafeInside', 'Кафе в зале', 'checkbox'], ['foodNearby', 'Еда рядом', 'text'], ['extraFeatures', 'Доп. фишки', 'textarea']] }
@@ -162,22 +162,59 @@
         socialPricingToggle.textContent = state.socialMode ? 'Социальный режим' : 'Обычный режим';
     }
 
-    function renderPricingPreview(gym) {
-        const base = (gym.details || {}).pricing || {};
-        const baseEntries = [['Разовое', base.singlePrice], ['Студенческое', base.studentPrice], ['Абонемент', base.membershipPrice], ['Безлимит', base.unlimitedPrice]].filter(([, value]) => String(value || '').trim());
-        const slots = getPricingSlots(gym).filter(slot => !state.socialMode || String(slot.audience || 'all') !== 'regular');
-        const slotEntries = slots.map((slot) => {
-            const prices = slot.prices || {};
-            const firstValue = [prices.singlePrice, prices.studentPrice, prices.membershipPrice, prices.unlimitedPrice].find(Boolean);
-            if (!firstValue) return '';
-            const range = [slot.start, slot.end].filter(Boolean).join('–');
-            const dayType = slot.dayType === 'weekend' ? 'выходной' : slot.dayType === 'weekday' ? 'будний' : '';
-            return `${slot.label || 'Тариф'} ${[dayType, range].filter(Boolean).join(', ')}: ${firstValue}`;
-        }).filter(Boolean);
 
-        const all = [...baseEntries.map(([label, value]) => `${label}: ${value}`), ...slotEntries];
-        if (!all.length) return '<span class="gym-card-meta">Цены не заполнены</span>';
-        return all.slice(0, 2).map(text => `<span class="gym-card-meta">${window.AppCore.escapeHtml(text)}</span>`).join('');
+    function resolveSlotSocialFlag(slot) {
+        if (slot.isSocial === 'yes' || slot.isSocial === 'no') return slot.isSocial;
+        if (slot.audience === 'social') return 'yes';
+        if (slot.audience === 'regular') return 'no';
+        return '';
+    }
+
+    function isSlotVisibleInMode(slot) {
+        const socialFlag = resolveSlotSocialFlag(slot);
+        if (!socialFlag) return true;
+        return state.socialMode ? socialFlag === 'yes' : socialFlag === 'no';
+    }
+
+    function chooseTopPrice(slot) {
+        const prices = slot.prices || {};
+        return prices.singlePrice || prices.membershipPrice || prices.unlimitedPrice || prices.studentPrice || '';
+    }
+
+    function pickBestSlot(slots) {
+        if (!slots.length) return null;
+        const defaultMinutes = Number(DEFAULT_PRICING_TIME.split(':')[0]) * 60 + Number(DEFAULT_PRICING_TIME.split(':')[1]);
+        const withScore = slots.map((slot) => {
+            const dayScore = slot.dayType === 'weekday' ? 0 : slot.dayType ? 3 : 1;
+            const start = String(slot.start || '').trim();
+            const end = String(slot.end || '').trim();
+            let timeScore = 1;
+            if (start && end) {
+                const startMinutes = Number(start.split(':')[0]) * 60 + Number(start.split(':')[1]);
+                const endMinutes = Number(end.split(':')[0]) * 60 + Number(end.split(':')[1]);
+                if (defaultMinutes >= startMinutes && defaultMinutes <= endMinutes) {
+                    timeScore = 0;
+                } else {
+                    timeScore = Math.min(Math.abs(defaultMinutes - startMinutes), Math.abs(defaultMinutes - endMinutes)) / 60;
+                }
+            }
+            return { slot, score: dayScore * 10 + timeScore };
+        });
+        withScore.sort((a, b) => a.score - b.score);
+        return withScore[0].slot;
+    }
+
+    function renderPricingPreview(gym) {
+        const slots = getPricingSlots(gym).filter(isSlotVisibleInMode);
+        const preferred = pickBestSlot(slots);
+        if (!preferred) return '<span class="gym-card-meta">Тарифы не заполнены</span>';
+
+        const dayType = preferred.dayType === 'weekend' ? 'выходной' : preferred.dayType === 'weekday' ? 'будний' : '';
+        const range = [preferred.start, preferred.end].filter(Boolean).join('–');
+        const topPrice = chooseTopPrice(preferred);
+        const title = [preferred.label || 'Тариф', dayType, range].filter(Boolean).join(', ');
+        if (!topPrice) return `<span class="gym-card-meta">${window.AppCore.escapeHtml(title || 'Тариф')}</span>`;
+        return `<span class="gym-card-meta">${window.AppCore.escapeHtml(title || 'Тариф')}: ${window.AppCore.escapeHtml(topPrice)}</span>`;
     }
 
     function renderCards() {
@@ -230,14 +267,14 @@
     function renderPricingSlots(gym) {
         const slots = getPricingSlots(gym);
         if (!state.editMode) {
-            const lines = slots.filter(slot => !state.socialMode || String(slot.audience || 'all') !== 'regular').map((slot) => {
+            const lines = slots.filter(isSlotVisibleInMode).map((slot) => {
                 const dayType = slot.dayType === 'weekend' ? 'Выходной' : slot.dayType === 'weekday' ? 'Будний' : '';
-                const audience = slot.audience === 'social' ? 'Социальный' : slot.audience === 'regular' ? 'Обычный' : '';
+                const socialFlag = resolveSlotSocialFlag(slot) === 'yes' ? 'Социальный: да' : resolveSlotSocialFlag(slot) === 'no' ? 'Социальный: нет' : '';
                 const range = [slot.start, slot.end].filter(Boolean).join('–');
                 const prices = slot.prices || {};
-                const chunks = [prices.singlePrice ? `Разовое: ${prices.singlePrice}` : '', prices.studentPrice ? `Студ: ${prices.studentPrice}` : '', prices.membershipPrice ? `Абон: ${prices.membershipPrice}` : '', prices.unlimitedPrice ? `Безлим: ${prices.unlimitedPrice}` : ''].filter(Boolean).join(' · ');
+                const chunks = [prices.singlePrice ? `Разовое: ${prices.singlePrice}` : '', prices.studentPrice ? `Соц: ${prices.studentPrice}` : '', prices.membershipPrice ? `Абон: ${prices.membershipPrice}` : '', prices.unlimitedPrice ? `Безлим: ${prices.unlimitedPrice}` : ''].filter(Boolean).join(' · ');
                 if (!chunks) return '';
-                return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range, audience].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
+                return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range, socialFlag].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
             }).filter(Boolean);
             return lines.length ? `<section class="gym-modal-section"><h4>Тарифы по времени</h4><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>` : '';
         }
@@ -248,9 +285,9 @@
                 <label><span>День</span><select data-slot-field="dayType"><option value="" ${!slot.dayType ? 'selected' : ''}>Любой</option><option value="weekday" ${slot.dayType === 'weekday' ? 'selected' : ''}>Будний</option><option value="weekend" ${slot.dayType === 'weekend' ? 'selected' : ''}>Выходной</option></select></label>
                 <label><span>С</span><input data-slot-field="start" type="time" value="${window.AppCore.escapeHtml(slot.start || '')}"></label>
                 <label><span>До</span><input data-slot-field="end" type="time" value="${window.AppCore.escapeHtml(slot.end || '')}"></label>
-                <label><span>Режим</span><select data-slot-field="audience"><option value="all" ${!slot.audience || slot.audience === 'all' ? 'selected' : ''}>Все</option><option value="social" ${slot.audience === 'social' ? 'selected' : ''}>Социальный</option><option value="regular" ${slot.audience === 'regular' ? 'selected' : ''}>Обычный</option></select></label>
+                <label><span>Социальный тариф</span><select data-slot-field="isSocial"><option value="" ${!slot.isSocial && !slot.audience ? 'selected' : ''}>Не указано</option><option value="yes" ${slot.isSocial === 'yes' || slot.audience === 'social' ? 'selected' : ''}>Да</option><option value="no" ${slot.isSocial === 'no' || slot.audience === 'regular' ? 'selected' : ''}>Нет</option></select></label>
                 <label><span>Разовое</span><input data-slot-field="singlePrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).singlePrice || '')}"></label>
-                <label><span>Студ.</span><input data-slot-field="studentPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).studentPrice || '')}"></label>
+                <label><span>Соц.</span><input data-slot-field="studentPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).studentPrice || '')}"></label>
                 <label><span>Абон.</span><input data-slot-field="membershipPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).membershipPrice || '')}"></label>
                 <label><span>Безлим.</span><input data-slot-field="unlimitedPrice" type="text" value="${window.AppCore.escapeHtml((slot.prices || {}).unlimitedPrice || '')}"></label>
                 <button type="button" class="slot-remove" data-remove-slot="${index}">Удалить</button>
@@ -262,10 +299,11 @@
         const gym = state.gyms.find(item => item.id === state.selectedGymId);
         if (!gym) return;
         gymModalTitle.textContent = gym.name;
-        gymModalBody.innerHTML = sections.map((section) => {
+        const sectionMarkup = sections.map((section) => {
             const block = section.fields.map(field => createFieldMarkup(gym, section, field)).filter(Boolean).join('');
             return block ? `<section class="gym-modal-section"><h4>${section.label}</h4><div class="gym-modal-grid">${block}</div></section>` : '';
-        }).join('') + renderPricingSlots(gym);
+        }).join('');
+        gymModalBody.innerHTML = state.editMode ? `${renderPricingSlots(gym)}${sectionMarkup}` : `${sectionMarkup}${renderPricingSlots(gym)}`;
     }
 
     function collectPricingSlotsFromForm() {
@@ -274,7 +312,7 @@
         return Array.from(editor.querySelectorAll('.pricing-slot-item')).map((node) => {
             const get = (field) => String((node.querySelector(`[data-slot-field="${field}"]`) || {}).value || '').trim();
             const slot = {
-                label: get('label'), dayType: get('dayType'), start: get('start'), end: get('end'), audience: get('audience') || 'all',
+                label: get('label'), dayType: get('dayType'), start: get('start'), end: get('end'), isSocial: get('isSocial'),
                 prices: { singlePrice: get('singlePrice'), studentPrice: get('studentPrice'), membershipPrice: get('membershipPrice'), unlimitedPrice: get('unlimitedPrice') }
             };
             return slot;
@@ -316,6 +354,7 @@
     }
 
     async function syncGyms() {
+        if (state.editMode) return;
         const serverGyms = await fetchGymsSnapshot();
         if (!serverGyms) return;
         const merged = mergeServerWithOptimisticGyms(serverGyms, state.gyms);
@@ -371,9 +410,6 @@
 
         await initializeGymsData();
 
-        bindSwipe(document.getElementById('calendarToGymsSwipe'), 'up', () => setPage(true));
-        bindSwipe(document.getElementById('gymsToCalendarSwipe'), 'up', () => setPage(false));
-
         cardsContainer.addEventListener('click', (event) => {
             const card = event.target.closest('.gym-card');
             if (!card) return;
@@ -400,7 +436,7 @@
             if (event.target.id === 'addPricingSlot') {
                 const gym = state.gyms.find(item => item.id === state.selectedGymId);
                 if (!gym) return;
-                const next = [...getPricingSlots(gym), { label: '', dayType: '', start: '', end: '', audience: 'all', prices: {} }];
+                const next = [...getPricingSlots(gym), { label: '', dayType: '', start: '', end: '', isSocial: '', prices: {} }];
                 gym.details = { ...(gym.details || {}), pricingSlots: next };
                 renderGymModal();
                 return;
@@ -434,7 +470,10 @@
         }
 
         gymOverlay.addEventListener('click', closeGymModal);
-        setInterval(syncGyms, window.CalendarConfig.SYNC_INTERVAL_MS);
+        setInterval(() => {
+            if (state.editMode) return;
+            syncGyms();
+        }, window.CalendarConfig.SYNC_INTERVAL_MS);
     }
 
     function refreshFromCalendarEvents() {
