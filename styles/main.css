@@ -345,7 +345,9 @@ button {
 }
 
 .day.today .day-number {
-    background: color-mix(in srgb, var(--day-border-event) 26%, transparent);
+    background: var(--day-today-number-bg);
+    color: var(--day-today-number-text);
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--day-today-ring) 88%, #ffffff 12%);
     font-weight: 700;
 }
 
