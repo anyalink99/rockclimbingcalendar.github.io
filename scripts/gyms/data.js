@@ -79,7 +79,7 @@
 
     async function fetchGymsSnapshot() {
         try {
-            const res = await fetch(`${window.CalendarConfig.GYMS_API_URL}?action=list`);
+            const res = await fetch(`${window.AppEndpoints.gymsApi}?action=list`);
             if (!res.ok) return null;
             const data = await res.json();
             return normalizeGyms(data.items || []);

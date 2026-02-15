@@ -97,6 +97,14 @@
         // UI переключателя рендерится динамически в модалке.
     }
 
+    function syncSocialToggleVisuals(root = document) {
+        root.querySelectorAll('[data-social-pricing-toggle]').forEach((toggle) => {
+            toggle.classList.toggle('is-social', state.socialMode);
+            toggle.classList.toggle('is-regular', !state.socialMode);
+            toggle.setAttribute('aria-pressed', state.socialMode ? 'true' : 'false');
+        });
+    }
+
     function renderSocialModeToggle(source = 'modal') {
         return `<button type="button" class="social-mode-toggle social-mode-toggle-${source} ${state.socialMode ? 'is-social' : 'is-regular'}" data-social-pricing-toggle="1" aria-pressed="${state.socialMode ? 'true' : 'false'}" title="Переключить режим цен"><span class="social-mode-pill social-mode-pill-regular">Обычный</span><span class="social-mode-pill social-mode-pill-social">Социальный</span></button>`;
     }
@@ -120,10 +128,10 @@
                 return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
             }).filter(Boolean);
             if (!lines.length) return '';
-            return `<section class="gym-modal-section"><div class="gym-modal-pricing-header"><h4>Тарифы</h4>${renderSocialModeToggle('modal')}</div><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>`;
+            return `<section class="gym-modal-section gym-modal-pricing-section"><div class="gym-modal-pricing-header"><h4>Тарифы</h4>${renderSocialModeToggle('modal')}</div><div class="gym-modal-pricing-content"><ul class="gym-pricing-readonly">${lines.join('')}</ul></div></section>`;
         }
 
-        return `<section class="gym-modal-section"><h4>Тарифы</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
+        return `<section class="gym-modal-section gym-modal-pricing-section"><h4>Тарифы</h4><div class="gym-modal-pricing-content"><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
             <div class="pricing-slot-item" data-slot-index="${index}">
                 <label><span>Название тарифа</span><input data-slot-field="label" type="text" value="${window.AppCore.escapeHtml(slot.label || '')}"></label>
                 <label><span>День</span>${renderSlotCustomSelect({ field: 'dayType', value: slot.dayType || '', placeholder: 'Любой', options: [{ value: '', label: 'Любой' }, { value: 'weekday', label: 'Будний' }, { value: 'weekend', label: 'Выходной' }] })}</label>
@@ -142,7 +150,7 @@
                     </svg>
                 </button>
             </div>
-        `).join('')}</div><button type="button" id="addPricingSlot" class="add-slot-button">+ Добавить тариф</button></section>`;
+        `).join('')}</div><button type="button" id="addPricingSlot" class="add-slot-button">+ Добавить тариф</button></div></section>`;
     }
 
     function renderGymModal() {
@@ -173,6 +181,82 @@
         return `<span class="gym-card-price"><span class="gym-card-price-label">${window.AppCore.escapeHtml(title || 'Тариф')}</span><strong class="gym-card-price-value">${window.AppCore.escapeHtml(topPrice)}</strong></span>`;
     }
 
+    function animateContentSwap(container, nextHtml) {
+        if (!container) return;
+
+        const normalizedNextHtml = String(nextHtml || '').trim();
+        const currentHtml = container.innerHTML.trim();
+        if (currentHtml === normalizedNextHtml) return;
+
+        const startHeight = container.getBoundingClientRect().height;
+        const measureNode = document.createElement(container.tagName || 'div');
+        measureNode.style.position = 'absolute';
+        measureNode.style.visibility = 'hidden';
+        measureNode.style.pointerEvents = 'none';
+        measureNode.style.left = '-99999px';
+        measureNode.style.top = '0';
+        measureNode.style.width = `${container.getBoundingClientRect().width}px`;
+        measureNode.style.height = 'auto';
+        measureNode.style.overflow = 'visible';
+        measureNode.className = container.className.replace(/\bis-switching\b/g, '').trim();
+        measureNode.innerHTML = normalizedNextHtml;
+        document.body.appendChild(measureNode);
+        const endHeight = measureNode.getBoundingClientRect().height;
+        measureNode.remove();
+
+        container.style.height = `${startHeight}px`;
+        container.classList.add('is-switching');
+        void container.offsetHeight;
+        container.innerHTML = `<span class="pricing-fade">${normalizedNextHtml}</span>`;
+
+        const cleanup = () => {
+            container.classList.remove('is-switching');
+            container.style.height = '';
+            container.removeEventListener('transitionend', onTransitionEnd);
+            const fadeNode = container.firstElementChild;
+            if (fadeNode && fadeNode.classList.contains('pricing-fade')) {
+                container.innerHTML = fadeNode.innerHTML;
+            }
+        };
+
+        const onTransitionEnd = (event) => {
+            if (event.propertyName !== 'height') return;
+            cleanup();
+        };
+
+        container.addEventListener('transitionend', onTransitionEnd);
+        requestAnimationFrame(() => {
+            container.style.height = `${endHeight}px`;
+            if (Math.abs(endHeight - startHeight) < 1) setTimeout(cleanup, 170);
+        });
+    }
+
+    function updateCardsPricingPreviewAnimated() {
+        cardsContainer.querySelectorAll('.gym-card[data-gym-id]').forEach((cardNode) => {
+            const gymId = cardNode.getAttribute('data-gym-id');
+            const gym = state.gyms.find(item => item.id === gymId);
+            if (!gym) return;
+            const pricingNode = cardNode.querySelector('.gym-card-pricing');
+            animateContentSwap(pricingNode, renderPricingPreview(gym));
+        });
+    }
+
+    function extractPricingContentInnerHtml(gym) {
+        const temp = document.createElement('div');
+        temp.innerHTML = renderPricingSlots(gym);
+        const content = temp.querySelector('.gym-modal-pricing-content');
+        return content ? content.innerHTML : '';
+    }
+
+    function updateModalPricingAnimated() {
+        if (state.editMode || !gymModal.classList.contains('open')) return;
+        const gym = state.gyms.find(item => item.id === state.selectedGymId);
+        if (!gym) return;
+        const pricingContent = gymModalBody.querySelector('.gym-modal-pricing-content');
+        if (!pricingContent) return;
+        animateContentSwap(pricingContent, extractPricingContentInnerHtml(gym));
+    }
+
     function renderCards() {
         if (!cardsContainer) return;
         cardsContainer.innerHTML = state.gyms.map((gym) => {
@@ -181,7 +265,7 @@
                 <span class="gym-card-title"><img src="${encodeURI(gym.icon || '')}" alt="">${window.AppCore.escapeHtml(gym.name)}</span>
                 <span class="gym-card-meta">Ближайший поход: ${window.AppCore.escapeHtml(summary.upcoming)}</span>
                 <span class="gym-card-meta">Последний поход: ${window.AppCore.escapeHtml(summary.last)}</span>
-                <span class="gym-card-pricing">${renderPricingPreview(gym)}</span>
+                <span class="gym-card-pricing" data-gym-pricing="1">${renderPricingPreview(gym)}</span>
             </button>`;
         }).join('');
         updateCardsLayoutClass();
@@ -275,7 +359,7 @@
         renderCards();
 
         try {
-            const res = await fetch(window.CalendarConfig.GYMS_API_URL, {
+            const res = await fetch(window.AppEndpoints.gymsApi, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ action: 'saveGym', gym: { ...optimisticGym, pending: undefined, optimisticCreatedAt: undefined, fingerprint: undefined } })
@@ -468,8 +552,9 @@
                 state.socialMode = !state.socialMode;
                 persistSocialMode();
                 updateSocialModeUi();
-                renderCards();
-                renderGymModal();
+                syncSocialToggleVisuals();
+                updateCardsPricingPreviewAnimated();
+                updateModalPricingAnimated();
                 return;
             }
             const addressNode = event.target.closest('[data-address-link]');

@@ -1,28 +1,5 @@
 (function () {
-    const { CalendarConfig, CalendarDom, CalendarState, CalendarData, CalendarRender, CalendarUI } = window;
-
-
-    async function loadGymCatalog() {
-        CalendarConfig.gymOptions = [...CalendarConfig.defaultGymOptions];
-        CalendarConfig.gymMeta = { ...CalendarConfig.defaultGymMeta };
-        try {
-            const res = await fetch(`${CalendarConfig.GYMS_API_URL}?action=list`);
-            if (!res.ok) return;
-            const payload = await res.json();
-            if (!payload || !Array.isArray(payload.items) || payload.items.length === 0) return;
-            const options = payload.items.map(item => String(item.name || '').trim()).filter(Boolean);
-            if (options.length > 0) CalendarConfig.gymOptions = options;
-            const nextMeta = {};
-            payload.items.forEach((item) => {
-                const name = String(item.name || '').trim();
-                if (!name) return;
-                nextMeta[name] = { image: String(item.icon || '').trim() || (CalendarConfig.defaultGymMeta[name] && CalendarConfig.defaultGymMeta[name].image) || '' };
-            });
-            CalendarConfig.gymMeta = nextMeta;
-        } catch {
-            // fallback to defaults
-        }
-    }
+    const { CalendarConfig, CalendarDom, CalendarState, CalendarData, CalendarRender, CalendarUI, CalendarCatalog } = window;
 
     function rerenderCalendarAndModal() {
         CalendarRender.renderCalendar();
@@ -160,7 +137,7 @@
         window.AppCore.initializeNameInput(CalendarDom.userName);
         CalendarUI.initializeThemeSwitcher();
         initializeCalendar();
-        loadGymCatalog();
+        CalendarCatalog.loadGymCatalog();
         CalendarUI.initializeModalControls();
         CalendarUI.bindModalEventGuards();
         setInterval(syncChanges, CalendarConfig.SYNC_INTERVAL_MS);
