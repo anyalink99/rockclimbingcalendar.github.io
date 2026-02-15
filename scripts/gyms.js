@@ -120,10 +120,10 @@
                 return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
             }).filter(Boolean);
             if (!lines.length) return '';
-            return `<section class="gym-modal-section gym-modal-pricing-section"><div class="gym-modal-pricing-header"><h4>Тарифы</h4>${renderSocialModeToggle('modal')}</div><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>`;
+            return `<section class="gym-modal-section gym-modal-pricing-section"><div class="gym-modal-pricing-header"><h4>Тарифы</h4>${renderSocialModeToggle('modal')}</div><div class="gym-modal-pricing-content"><ul class="gym-pricing-readonly">${lines.join('')}</ul></div></section>`;
         }
 
-        return `<section class="gym-modal-section gym-modal-pricing-section"><h4>Тарифы</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
+        return `<section class="gym-modal-section gym-modal-pricing-section"><h4>Тарифы</h4><div class="gym-modal-pricing-content"><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
             <div class="pricing-slot-item" data-slot-index="${index}">
                 <label><span>Название тарифа</span><input data-slot-field="label" type="text" value="${window.AppCore.escapeHtml(slot.label || '')}"></label>
                 <label><span>День</span>${renderSlotCustomSelect({ field: 'dayType', value: slot.dayType || '', placeholder: 'Любой', options: [{ value: '', label: 'Любой' }, { value: 'weekday', label: 'Будний' }, { value: 'weekend', label: 'Выходной' }] })}</label>
@@ -142,7 +142,7 @@
                     </svg>
                 </button>
             </div>
-        `).join('')}</div><button type="button" id="addPricingSlot" class="add-slot-button">+ Добавить тариф</button></section>`;
+        `).join('')}</div><button type="button" id="addPricingSlot" class="add-slot-button">+ Добавить тариф</button></div></section>`;
     }
 
     function renderGymModal() {
@@ -175,22 +175,38 @@
 
     function animateContentSwap(container, nextHtml) {
         if (!container) return;
-        const startHeight = container.offsetHeight;
+
+        const currentHtml = container.innerHTML.trim();
+        if (currentHtml === String(nextHtml || '').trim()) return;
+
+        const startHeight = container.getBoundingClientRect().height;
         container.style.height = `${startHeight}px`;
         container.classList.add('is-switching');
         container.innerHTML = `<span class="pricing-fade">${nextHtml}</span>`;
+
         const endHeight = container.scrollHeight;
-        requestAnimationFrame(() => {
-            container.style.height = `${endHeight}px`;
-        });
-        setTimeout(() => {
+        const cleanup = () => {
             container.classList.remove('is-switching');
             container.style.height = '';
+            container.removeEventListener('transitionend', onTransitionEnd);
             const fadeNode = container.firstElementChild;
             if (fadeNode && fadeNode.classList.contains('pricing-fade')) {
                 container.innerHTML = fadeNode.innerHTML;
             }
-        }, 190);
+        };
+
+        const onTransitionEnd = (event) => {
+            if (event.propertyName !== 'height') return;
+            cleanup();
+        };
+
+        container.addEventListener('transitionend', onTransitionEnd);
+        requestAnimationFrame(() => {
+            container.style.height = `${endHeight}px`;
+            if (Math.abs(endHeight - startHeight) < 1) {
+                setTimeout(cleanup, 170);
+            }
+        });
     }
 
     function updateCardsPricingPreviewAnimated() {
@@ -203,20 +219,20 @@
         });
     }
 
-    function extractPricingSectionInnerHtml(gym) {
+    function extractPricingContentInnerHtml(gym) {
         const temp = document.createElement('div');
         temp.innerHTML = renderPricingSlots(gym);
-        const section = temp.querySelector('.gym-modal-pricing-section');
-        return section ? section.innerHTML : '';
+        const content = temp.querySelector('.gym-modal-pricing-content');
+        return content ? content.innerHTML : '';
     }
 
     function updateModalPricingAnimated() {
         if (state.editMode || !gymModal.classList.contains('open')) return;
         const gym = state.gyms.find(item => item.id === state.selectedGymId);
         if (!gym) return;
-        const pricingSection = gymModalBody.querySelector('.gym-modal-pricing-section');
-        if (!pricingSection) return;
-        animateContentSwap(pricingSection, extractPricingSectionInnerHtml(gym));
+        const pricingContent = gymModalBody.querySelector('.gym-modal-pricing-content');
+        if (!pricingContent) return;
+        animateContentSwap(pricingContent, extractPricingContentInnerHtml(gym));
     }
 
     function renderCards() {
