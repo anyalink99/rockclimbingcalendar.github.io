@@ -137,8 +137,13 @@
         window.AppCore.initializeNameInput(CalendarDom.userName);
         CalendarUI.initializeThemeSwitcher();
         initializeCalendar();
-        CalendarCatalog.loadGymCatalog();
         CalendarUI.initializeModalControls();
+
+        CalendarCatalog.loadGymCatalog().then(() => {
+            if (typeof CalendarUI.refreshGymOptions !== 'function') return;
+            CalendarUI.refreshGymOptions(CalendarDom.gymSelect.value);
+        });
+
         CalendarUI.bindModalEventGuards();
         setInterval(syncChanges, CalendarConfig.SYNC_INTERVAL_MS);
     }

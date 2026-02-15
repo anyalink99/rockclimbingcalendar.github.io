@@ -97,8 +97,17 @@
         if (valueNode) valueNode.textContent = value;
     }
 
+    function refreshGymOptions(preferredGym) {
+        const currentGym = preferredGym || CalendarDom.gymSelect.value;
+        const options = Array.isArray(CalendarConfig.gymOptions) && CalendarConfig.gymOptions.length
+            ? CalendarConfig.gymOptions
+            : CalendarConfig.defaultGymOptions;
+        const defaultValue = options.includes(currentGym) ? currentGym : options[0];
+        renderCustomSelect({ uiId: 'gymSelectUi', inputId: 'gymSelect', options, defaultValue, placeholder: 'Выбери скалодром' });
+    }
+
     function initializeModalControls() {
-        renderCustomSelect({ uiId: 'gymSelectUi', inputId: 'gymSelect', options: CalendarConfig.gymOptions, defaultValue: CalendarConfig.gymOptions[0], placeholder: 'Выбери скалодром' });
+        refreshGymOptions();
         const timeOptions = [];
         for (let hour = 0; hour < 24; hour++) {
             for (let minute = 0; minute < 60; minute += 15) {
@@ -182,6 +191,7 @@
         initializeThemeSwitcher,
         cycleTheme,
         initializeModalControls,
+        refreshGymOptions,
         setCustomSelectValue,
         lockModalInteraction,
         closeModal,
