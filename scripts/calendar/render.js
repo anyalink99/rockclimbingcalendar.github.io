@@ -36,11 +36,11 @@
             const isToday = dayjs().format('YYYY-MM-DD') === dateStr;
 
             CalendarDom.calendar.innerHTML += `
-                <div class="day ${isToday ? 'today' : ''} ${sureEvents.length ? 'has-events' : ''} ${hasUnsureOnly ? 'has-unsure-only' : ''}" onpointerdown="openModal('${dateStr}')">
-                    <div>${d}</div>
+                <button type="button" class="day ${isToday ? 'today' : ''} ${sureEvents.length ? 'has-events' : ''} ${hasUnsureOnly ? 'has-unsure-only' : ''}" onclick="openModal('${dateStr}')">
+                    <div class="day-number">${d}</div>
                     ${sureEvents.length ? renderGymIcons(sureEvents, dateStr) : '<div></div>'}
                     <div class="count">${sureEvents.length ? `${sureEvents.length} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="8" r="2.5"></circle><path d="M3.8 16.6c.3-2.2 2-3.6 4.7-3.6s4.4 1.4 4.7 3.6"></path><circle cx="16" cy="8.8" r="2"></circle><path d="M13.3 16.6c.23-1.75 1.46-2.86 3.4-2.86 1.84 0 3.03 1.04 3.3 2.86"></path></svg>` : ''}</div>
-                </div>`;
+                </button>`;
         }
 
         CalendarState.previousCalendarGymsByDate = nextCalendarGymsByDate;
