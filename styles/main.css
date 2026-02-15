@@ -345,10 +345,10 @@ button {
 }
 
 .day.today .day-number {
-    background: var(--day-today-number-bg);
-    color: var(--day-today-number-text);
-    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--day-today-ring) 88%, #ffffff 12%);
-    font-weight: 700;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+    font-weight: 800;
 }
 
 .day.has-events {
