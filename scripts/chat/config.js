@@ -1,5 +1,4 @@
 window.ChatConfig = {
-    DEFAULT_CHAT_API_URL: 'https://script.google.com/macros/s/AKfycbzOcgR2msOdbDPhNj05WFbgVWpvN_hwR2nYHouCPoce_r8BR8JmUO-g8LYBOsPx54DF/exec',
     CHAT_NAME: 'Залез? 2',
     CHAT_SHEET_NAME: 'Chat',
     CHAT_BATCH_SIZE: 100,
@@ -22,9 +21,7 @@ window.ChatDom = {
     toggleButton: document.getElementById('chatToggleButton')
 };
 
-const resolvedApiUrl = typeof window !== 'undefined' && typeof window.CHAT_API_URL === 'string' && window.CHAT_API_URL.trim()
-    ? window.CHAT_API_URL.trim()
-    : window.ChatConfig.DEFAULT_CHAT_API_URL;
+const resolvedApiUrl = window.AppEndpoints.chatApi;
 
 window.ChatState = {
     apiUrl: resolvedApiUrl,
@@ -39,5 +36,6 @@ window.ChatState = {
     interactionTimeoutId: null,
     interactionToken: 0,
     interactionUnlockedAt: 0,
-    keyboardInset: 0
+    keyboardInset: 0,
+    suppressNextRefreshAnimation: false
 };
