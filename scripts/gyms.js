@@ -268,7 +268,10 @@
             const gym = state.gyms.find(item => item.id === gymId);
             if (!gym) return;
             const pricingNode = cardNode.querySelector('.gym-card-pricing');
-            animateCardPricingSwap(pricingNode, renderPricingPreview(gym));
+            if (!pricingNode) return;
+            const nextHtml = renderPricingPreview(gym);
+            if (pricingNode.innerHTML.trim() === String(nextHtml || '').trim()) return;
+            pricingNode.innerHTML = nextHtml;
         });
     }
 
