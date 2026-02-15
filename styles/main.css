@@ -12,6 +12,12 @@
     --overlay-bg: rgba(0,0,0,0.7);
     --day-border-event: #4caf50;
     --day-border-unsure: #f5c542;
+    --day-underline-event: #4caf50;
+    --day-underline-unsure: #f5c542;
+    --day-today-ring: #6aa7ff;
+    --day-today-bg: rgba(106, 167, 255, 0.14);
+    --day-today-number-bg: rgba(106, 167, 255, 0.28);
+    --day-today-number-text: #eaf2ff;
 }
 
 :root[data-theme="grandmaster"] {
@@ -28,6 +34,12 @@
     --overlay-bg: rgba(20, 12, 7, 0.72);
     --day-border-event: #8fc28f;
     --day-border-unsure: #f0c778;
+    --day-underline-event: #8fc28f;
+    --day-underline-unsure: #f0c778;
+    --day-today-ring: #6ec5ff;
+    --day-today-bg: rgba(110, 197, 255, 0.16);
+    --day-today-number-bg: rgba(110, 197, 255, 0.24);
+    --day-today-number-text: #fff9ef;
 }
 
 :root[data-theme="ivory"] {
@@ -44,6 +56,12 @@
     --overlay-bg: rgba(58, 41, 24, 0.32);
     --day-border-event: #5f9b6a;
     --day-border-unsure: #cf9852;
+    --day-underline-event: #5f9b6a;
+    --day-underline-unsure: #cf9852;
+    --day-today-ring: #3f76c9;
+    --day-today-bg: rgba(63, 118, 201, 0.13);
+    --day-today-number-bg: rgba(63, 118, 201, 0.2);
+    --day-today-number-text: #1f3660;
 }
 
 :root[data-theme="forest"] {
@@ -60,6 +78,12 @@
     --overlay-bg: rgba(8, 16, 12, 0.74);
     --day-border-event: #66d17c;
     --day-border-unsure: #e1c56a;
+    --day-underline-event: #66d17c;
+    --day-underline-unsure: #e1c56a;
+    --day-today-ring: #4ab5b7;
+    --day-today-bg: rgba(74, 181, 183, 0.13);
+    --day-today-number-bg: rgba(74, 181, 183, 0.25);
+    --day-today-number-text: #d7fffa;
 }
 
 :root[data-theme="ocean"] {
@@ -76,6 +100,12 @@
     --overlay-bg: rgba(7, 14, 23, 0.78);
     --day-border-event: #76d1a5;
     --day-border-unsure: #f1c46b;
+    --day-underline-event: #76d1a5;
+    --day-underline-unsure: #f1c46b;
+    --day-today-ring: #7cb7ff;
+    --day-today-bg: rgba(124, 183, 255, 0.13);
+    --day-today-number-bg: rgba(124, 183, 255, 0.25);
+    --day-today-number-text: #e9f3ff;
 }
 
 body {
@@ -93,6 +123,7 @@ body {
 
 * {
     scrollbar-width: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 *::-webkit-scrollbar {
@@ -256,6 +287,27 @@ button {
     flex-direction: column;
     justify-content: space-between;
     transition: 0.2s;
+    position: relative;
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: left;
+    font-weight: 400;
+    color: inherit;
+    touch-action: pan-y;
+}
+
+.day::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 6px;
+    height: 3px;
+    border-radius: 999px;
+    opacity: 0;
+    transform: scaleX(0.75);
+    transform-origin: center;
+    transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .gym-icons {
@@ -287,16 +339,49 @@ button {
 
 .day:hover { border-color: var(--accent); }
 
+.day-number {
+    width: fit-content;
+    min-width: 1.6em;
+    text-align: center;
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+
 .day.today {
-    border-bottom: 3px solid var(--accent);
+    box-shadow: inset 0 0 0 2px var(--day-today-ring);
+    background: color-mix(in srgb, var(--card-bg) 86%, var(--day-today-bg));
+}
+
+.day.today .day-number {
+    background: var(--day-today-number-bg);
+    color: var(--day-today-number-text);
+    font-weight: 700;
 }
 
 .day.has-events {
     border-color: var(--day-border-event);
 }
 
+.day.has-events::after {
+    background: var(--day-underline-event);
+    opacity: 1;
+    transform: scaleX(1);
+}
+
 .day.has-unsure-only {
     border-color: var(--day-border-unsure);
+}
+
+.day.has-unsure-only::after {
+    background: repeating-linear-gradient(
+        90deg,
+        var(--day-underline-unsure) 0,
+        var(--day-underline-unsure) 8px,
+        transparent 8px,
+        transparent 12px
+    );
+    opacity: 1;
+    transform: scaleX(1);
 }
 
 .count {
