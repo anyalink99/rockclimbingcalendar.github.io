@@ -32,8 +32,7 @@
         {
             key: 'infrastructure',
             label: 'Инфраструктура',
-            fields: [['showers', 'Душевые', 'checkbox'], ['cafeInside', 'Кафе в зале', 'checkbox'], ['foodNearby', 'Еда рядом', 'text'], ['extraFeatures', 'Доп. фишки', 'text']],
-            customItemsLabel: 'Свои варианты инфраструктуры (через запятую)'
+            fields: [['showers', 'Душевые', 'checkbox'], ['cafeInside', 'Кафе в зале', 'checkbox'], ['extraFeatures', 'Доп. фишки', 'textarea', 'gym-modal-field-tall'], ['foodNearby', 'Еда рядом', 'textarea', 'gym-modal-field-tall']]
         }
     ];
 
@@ -294,7 +293,8 @@
                 `<div class="gym-modal-static gym-modal-static-chip"><strong>${window.AppCore.escapeHtml(item)}</strong></div>`
             )).join('');
         }
-        return `<label class="gym-modal-field"><span>${section.customItemsLabel}</span><textarea data-custom-section="${section.key}" placeholder="Например: Массажный ролл, Резинки, Пистолетный массажёр">${window.AppCore.escapeHtml(customItems.join(', '))}</textarea></label>`;
+        const customFieldClass = section.key === 'ofpInventory' ? ' gym-modal-field-tall' : '';
+        return `<label class="gym-modal-field"><span>${section.customItemsLabel}</span><textarea class="${customFieldClass.trim()}" data-custom-section="${section.key}" placeholder="Например: Массажный ролл, Резинки, Пистолетный массажёр">${window.AppCore.escapeHtml(customItems.join(', '))}</textarea></label>`;
     }
 
     function extractPricingContentInnerHtml(gym) {
@@ -352,7 +352,7 @@
     }
 
     function createFieldMarkup(gym, section, field) {
-        const [name, label, type] = field;
+        const [name, label, type, fieldClass = ''] = field;
         const value = (((gym.details || {})[section.key] || {})[name]);
 
         if (!state.editMode) {
@@ -377,7 +377,7 @@
         }
 
         if (type === 'checkbox') return `<label class="gym-modal-field gym-modal-check"><span>${label}</span><input data-section="${section.key}" data-name="${name}" type="checkbox" class="uncertain-checkbox" ${value ? 'checked' : ''}></label>`;
-        if (type === 'textarea') return `<label class="gym-modal-field"><span>${label}</span><textarea data-section="${section.key}" data-name="${name}">${window.AppCore.escapeHtml(value || '')}</textarea></label>`;
+        if (type === 'textarea') return `<label class="gym-modal-field"><span>${label}</span><textarea class="${fieldClass}" data-section="${section.key}" data-name="${name}">${window.AppCore.escapeHtml(value || '')}</textarea></label>`;
         return `<label class="gym-modal-field"><span>${label}</span><input data-section="${section.key}" data-name="${name}" type="${type}" value="${window.AppCore.escapeHtml(value || '')}"></label>`;
     }
 
