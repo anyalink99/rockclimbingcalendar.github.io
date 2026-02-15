@@ -1003,10 +1003,6 @@ button {
     font-size: 0.85rem;
 }
 
-.gym-modal-field textarea {
-    min-height: 70px;
-}
-
 .gyms-page {
     display: grid;
     gap: 12px;
@@ -1052,12 +1048,17 @@ button {
 .pricing-slot-item select {
     width: 100%;
     min-height: 40px;
+    box-sizing: border-box;
     border-radius: 10px;
     border: 1px solid var(--border);
     background: var(--input-bg);
     color: var(--input-text);
     padding: 8px 10px;
     line-height: 1.2;
+}
+
+.gym-modal-field textarea.gym-modal-field-tall {
+    min-height: 68px;
 }
 
 .gym-modal-static {
