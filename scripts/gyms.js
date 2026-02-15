@@ -23,8 +23,18 @@
     const sections = [
         { key: 'contacts', label: 'Контакты', fields: [['workHours', 'Время работы', 'text'], ['address', 'Адрес', 'text'], ['mapUrl', 'Ссылка на Yandex Maps', 'url'], ['clickableRefs', 'Кликабельные референсы', 'text']] },
         { key: 'gymInfo', label: 'Инфа по скалодрому', fields: [['routesCount', 'Кол-во трасс', 'number'], ['rerouteCycleDays', 'Full перекрутка (дней)', 'number'], ['popularity', 'Популярность (1-10)', 'number'], ['ventilation', 'Вентиляция (1-10)', 'number'], ['boards', 'Доски', 'text']] },
-        { key: 'ofpInventory', label: 'ОФП инвентарь', fields: [['benchPress', 'Жим лежа', 'checkbox'], ['platesRack', 'Стойка блинов', 'checkbox'], ['weightedVest', 'Жилет с весом', 'checkbox'], ['dipBelt', 'Пояс с цепью', 'checkbox'], ['campusBoard', 'Кампусборд', 'checkbox']] },
-        { key: 'infrastructure', label: 'Инфраструктура', fields: [['showers', 'Душевые', 'checkbox'], ['cafeInside', 'Кафе в зале', 'checkbox'], ['foodNearby', 'Еда рядом', 'text'], ['extraFeatures', 'Доп. фишки', 'text']] }
+        {
+            key: 'ofpInventory',
+            label: 'ОФП инвентарь',
+            fields: [['benchPress', 'Жим лежа', 'checkbox'], ['platesRack', 'Стойка блинов', 'checkbox'], ['weightedVest', 'Жилет с весом', 'checkbox'], ['dipBelt', 'Пояс с цепью', 'checkbox'], ['campusBoard', 'Кампусборд', 'checkbox']],
+            customItemsLabel: 'Свои варианты ОФП (через запятую)'
+        },
+        {
+            key: 'infrastructure',
+            label: 'Инфраструктура',
+            fields: [['showers', 'Душевые', 'checkbox'], ['cafeInside', 'Кафе в зале', 'checkbox'], ['foodNearby', 'Еда рядом', 'text'], ['extraFeatures', 'Доп. фишки', 'text']],
+            customItemsLabel: 'Свои варианты инфраструктуры (через запятую)'
+        }
     ];
 
     const pricingTimeOptions = Array.from({ length: 24 * 4 }, (_, index) => {
@@ -159,7 +169,8 @@
         const modeChanged = state.lastRenderedEditMode !== state.editMode;
         gymModalTitle.textContent = gym.name;
         const sectionMarkup = sections.map((section) => {
-            const block = section.fields.map(field => createFieldMarkup(gym, section, field)).filter(Boolean).join('');
+            const customFieldMarkup = createCustomItemsFieldMarkup(gym, section);
+            const block = [...section.fields.map(field => createFieldMarkup(gym, section, field)), customFieldMarkup].filter(Boolean).join('');
             return block ? `<section class="gym-modal-section"><h4>${section.label}</h4><div class="gym-modal-grid">${block}</div></section>` : '';
         }).join('');
         gymModalBody.innerHTML = `${renderPricingSlots(gym)}${sectionMarkup}`;
@@ -231,14 +242,56 @@
         });
     }
 
+    function animateCardPricingSwap(container, nextHtml) {
+        if (!container) return;
+
+        const normalizedNextHtml = String(nextHtml || '').trim();
+        const currentHtml = container.innerHTML.trim();
+        if (currentHtml === normalizedNextHtml) return;
+
+        const startHeight = container.getBoundingClientRect().height;
+        container.innerHTML = normalizedNextHtml;
+        const endHeight = container.getBoundingClientRect().height;
+        container.style.minHeight = `${Math.max(startHeight, endHeight)}px`;
+        container.classList.remove('pricing-fade-active');
+        void container.offsetHeight;
+        container.classList.add('pricing-fade-active');
+        setTimeout(() => {
+            container.style.minHeight = '';
+            container.classList.remove('pricing-fade-active');
+        }, 170);
+    }
+
     function updateCardsPricingPreviewAnimated() {
         cardsContainer.querySelectorAll('.gym-card[data-gym-id]').forEach((cardNode) => {
             const gymId = cardNode.getAttribute('data-gym-id');
             const gym = state.gyms.find(item => item.id === gymId);
             if (!gym) return;
             const pricingNode = cardNode.querySelector('.gym-card-pricing');
-            animateContentSwap(pricingNode, renderPricingPreview(gym));
+            animateCardPricingSwap(pricingNode, renderPricingPreview(gym));
         });
+    }
+
+    function normalizeCustomItems(rawValue) {
+        if (Array.isArray(rawValue)) {
+            return rawValue.map(item => String(item || '').trim()).filter(Boolean);
+        }
+        return String(rawValue || '')
+            .split(/[\n,]+/)
+            .map(item => item.trim())
+            .filter(Boolean);
+    }
+
+    function createCustomItemsFieldMarkup(gym, section) {
+        if (!section.customItemsLabel) return '';
+        const sectionData = ((gym.details || {})[section.key] || {});
+        const customItems = normalizeCustomItems(sectionData.customItems);
+        if (!state.editMode) {
+            return customItems.map((item) => (
+                `<div class="gym-modal-static gym-modal-static-chip"><strong>${window.AppCore.escapeHtml(item)}</strong></div>`
+            )).join('');
+        }
+        return `<label class="gym-modal-field"><span>${section.customItemsLabel}</span><textarea data-custom-section="${section.key}" placeholder="Например: Массажный ролл, Резинки, Пистолетный массажёр">${window.AppCore.escapeHtml(customItems.join(', '))}</textarea></label>`;
     }
 
     function extractPricingContentInnerHtml(gym) {
@@ -313,7 +366,8 @@
                 const numericValue = Number(value);
                 if (Number.isFinite(numericValue)) {
                     const clamped = Math.max(1, Math.min(10, numericValue));
-                    return `<div class="gym-modal-static"><span>${label}</span><strong class="gym-score" style="--score:${clamped}">${window.AppCore.escapeHtml(String(value))}</strong></div>`;
+                    const scoreClass = name === 'popularity' ? 'gym-score gym-score-popularity' : 'gym-score';
+                    return `<div class="gym-modal-static"><span>${label}</span><strong class="${scoreClass}" style="--score:${clamped}">${window.AppCore.escapeHtml(String(value))}</strong></div>`;
                 }
             }
             return `<div class="gym-modal-static"><span>${label}</span><strong>${window.AppCore.escapeHtml(String(value))}</strong></div>`;
@@ -349,6 +403,10 @@
                 if (!node) return;
                 details[section.key][name] = type === 'checkbox' ? node.checked : node.value;
             });
+            if (section.customItemsLabel) {
+                const customNode = gymModalBody.querySelector(`[data-custom-section="${section.key}"]`);
+                details[section.key].customItems = customNode ? normalizeCustomItems(customNode.value).join(', ') : '';
+            }
         });
         details.pricingSlots = collectPricingSlotsFromForm(gymModalBody);
 
