@@ -857,6 +857,10 @@ button {
     transition: height 0.16s ease;
 }
 
+.gym-card-pricing {
+    transition: opacity 0.16s ease, min-height 0.16s ease;
+}
+
 .gym-card-pricing.is-switching,
 .gym-modal-pricing-content.is-switching {
     overflow: hidden;
@@ -864,6 +868,10 @@ button {
 
 .pricing-fade {
     display: block;
+    animation: pricing-fade-in 0.16s ease-out both;
+}
+
+.gym-card-pricing.pricing-fade-active {
     animation: pricing-fade-in 0.16s ease-out both;
 }
 

@@ -242,6 +242,26 @@
         });
     }
 
+    function animateCardPricingSwap(container, nextHtml) {
+        if (!container) return;
+
+        const normalizedNextHtml = String(nextHtml || '').trim();
+        const currentHtml = container.innerHTML.trim();
+        if (currentHtml === normalizedNextHtml) return;
+
+        const startHeight = container.getBoundingClientRect().height;
+        container.innerHTML = normalizedNextHtml;
+        const endHeight = container.getBoundingClientRect().height;
+        container.style.minHeight = `${Math.max(startHeight, endHeight)}px`;
+        container.classList.remove('pricing-fade-active');
+        void container.offsetHeight;
+        container.classList.add('pricing-fade-active');
+        setTimeout(() => {
+            container.style.minHeight = '';
+            container.classList.remove('pricing-fade-active');
+        }, 170);
+    }
+
     function updateCardsPricingPreviewAnimated() {
         cardsContainer.querySelectorAll('.gym-card[data-gym-id]').forEach((cardNode) => {
             const gymId = cardNode.getAttribute('data-gym-id');
