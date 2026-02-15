@@ -91,6 +91,33 @@ body {
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+* {
+    scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.chat-messages {
+    scrollbar-width: thin;
+}
+
+.chat-messages::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 42%, var(--border));
+    border-radius: 999px;
+}
+
 img {
     user-select: none;
     -webkit-user-select: none;
@@ -826,7 +853,6 @@ button {
 }
 
 
-.gym-card-pricing,
 .gym-modal-pricing-content {
     transition: height 0.16s ease;
 }
@@ -1230,4 +1256,9 @@ button {
 .gym-score {
     --score-ratio: calc((clamp(1, var(--score), 10) - 1) / 9);
     color: hsl(calc(0 + 120 * var(--score-ratio)) 82% 56%);
+}
+
+.gym-score-popularity {
+    --score-ratio: calc((clamp(1, var(--score), 10) - 1) / 9);
+    color: hsl(calc(120 - 120 * var(--score-ratio)) 82% 56%);
 }
