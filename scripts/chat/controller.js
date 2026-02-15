@@ -2,22 +2,11 @@
     const { ChatConfig, ChatDom, ChatState, ChatData, ChatView } = window;
 
     function isChatInteractionLocked() {
-        return Date.now() < ChatState.interactionUnlockedAt;
+        return window.AppInteractionLock.isLocked({ state: ChatState });
     }
 
     function lockChatInteraction() {
-        if (ChatState.interactionTimeoutId) {
-            clearTimeout(ChatState.interactionTimeoutId);
-            ChatState.interactionTimeoutId = null;
-        }
-
-        ChatState.interactionToken += 1;
-        const token = ChatState.interactionToken;
-        ChatState.interactionUnlockedAt = Date.now() + ChatConfig.CHAT_INTERACTION_LOCK_MS;
-        ChatState.interactionTimeoutId = setTimeout(() => {
-            if (token !== ChatState.interactionToken) return;
-            ChatState.interactionTimeoutId = null;
-        }, ChatConfig.CHAT_INTERACTION_LOCK_MS);
+        window.AppInteractionLock.lock({ state: ChatState, durationMs: ChatConfig.CHAT_INTERACTION_LOCK_MS });
     }
 
     function handleChatReadError(error) {
@@ -62,11 +51,14 @@
                 const wasNearBottom = ChatView.isChatNearBottom();
                 ChatState.messages = ChatData.mergeServerWithOptimisticMessages(latestChunk.items, ChatState.messages);
                 ChatState.offset += freshServerItems.length;
-                ChatView.renderChatMessages({ stickToBottom: wasNearBottom, animateNew: true });
+                const shouldAnimateNew = !ChatState.suppressNextRefreshAnimation;
+                ChatView.renderChatMessages({ stickToBottom: wasNearBottom, animateNew: shouldAnimateNew });
+                ChatState.suppressNextRefreshAnimation = false;
                 ChatData.saveChatCache();
             }
 
             ChatState.hasMore = latestChunk.total > 0 ? ChatState.offset < latestChunk.total : latestChunk.hasMore;
+            ChatState.suppressNextRefreshAnimation = false;
         } catch (error) {
             handleChatReadError(error);
             console.error(error);
@@ -100,12 +92,7 @@
     }
 
     function closeChatPanel() {
-        ChatState.interactionToken += 1;
-        ChatState.interactionUnlockedAt = 0;
-        if (ChatState.interactionTimeoutId) {
-            clearTimeout(ChatState.interactionTimeoutId);
-            ChatState.interactionTimeoutId = null;
-        }
+        window.AppInteractionLock.reset({ state: ChatState });
 
         ChatState.open = false;
         ChatDom.panel.classList.remove('open');
@@ -131,6 +118,7 @@
             refreshChat(true);
         } else {
             ChatView.renderChatMessages({ stickToBottom: true, animateNew: false });
+            ChatState.suppressNextRefreshAnimation = true;
             refreshChat();
         }
 

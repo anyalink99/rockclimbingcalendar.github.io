@@ -120,10 +120,10 @@
                 return `<li>${window.AppCore.escapeHtml([slot.label || 'Тариф', dayType, range].filter(Boolean).join(' / '))}<br><strong>${window.AppCore.escapeHtml(chunks)}</strong></li>`;
             }).filter(Boolean);
             if (!lines.length) return '';
-            return `<section class="gym-modal-section"><div class="gym-modal-pricing-header"><h4>Тарифы</h4>${renderSocialModeToggle('modal')}</div><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>`;
+            return `<section class="gym-modal-section gym-modal-pricing-section"><div class="gym-modal-pricing-header"><h4>Тарифы</h4>${renderSocialModeToggle('modal')}</div><ul class="gym-pricing-readonly">${lines.join('')}</ul></section>`;
         }
 
-        return `<section class="gym-modal-section"><h4>Тарифы</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
+        return `<section class="gym-modal-section gym-modal-pricing-section"><h4>Тарифы</h4><div id="pricingSlotsEditor" class="pricing-slots-editor">${slots.map((slot, index) => `
             <div class="pricing-slot-item" data-slot-index="${index}">
                 <label><span>Название тарифа</span><input data-slot-field="label" type="text" value="${window.AppCore.escapeHtml(slot.label || '')}"></label>
                 <label><span>День</span>${renderSlotCustomSelect({ field: 'dayType', value: slot.dayType || '', placeholder: 'Любой', options: [{ value: '', label: 'Любой' }, { value: 'weekday', label: 'Будний' }, { value: 'weekend', label: 'Выходной' }] })}</label>
@@ -173,6 +173,52 @@
         return `<span class="gym-card-price"><span class="gym-card-price-label">${window.AppCore.escapeHtml(title || 'Тариф')}</span><strong class="gym-card-price-value">${window.AppCore.escapeHtml(topPrice)}</strong></span>`;
     }
 
+    function animateContentSwap(container, nextHtml) {
+        if (!container) return;
+        const startHeight = container.offsetHeight;
+        container.style.height = `${startHeight}px`;
+        container.classList.add('is-switching');
+        container.innerHTML = `<span class="pricing-fade">${nextHtml}</span>`;
+        const endHeight = container.scrollHeight;
+        requestAnimationFrame(() => {
+            container.style.height = `${endHeight}px`;
+        });
+        setTimeout(() => {
+            container.classList.remove('is-switching');
+            container.style.height = '';
+            const fadeNode = container.firstElementChild;
+            if (fadeNode && fadeNode.classList.contains('pricing-fade')) {
+                container.innerHTML = fadeNode.innerHTML;
+            }
+        }, 190);
+    }
+
+    function updateCardsPricingPreviewAnimated() {
+        cardsContainer.querySelectorAll('.gym-card[data-gym-id]').forEach((cardNode) => {
+            const gymId = cardNode.getAttribute('data-gym-id');
+            const gym = state.gyms.find(item => item.id === gymId);
+            if (!gym) return;
+            const pricingNode = cardNode.querySelector('.gym-card-pricing');
+            animateContentSwap(pricingNode, renderPricingPreview(gym));
+        });
+    }
+
+    function extractPricingSectionInnerHtml(gym) {
+        const temp = document.createElement('div');
+        temp.innerHTML = renderPricingSlots(gym);
+        const section = temp.querySelector('.gym-modal-pricing-section');
+        return section ? section.innerHTML : '';
+    }
+
+    function updateModalPricingAnimated() {
+        if (state.editMode || !gymModal.classList.contains('open')) return;
+        const gym = state.gyms.find(item => item.id === state.selectedGymId);
+        if (!gym) return;
+        const pricingSection = gymModalBody.querySelector('.gym-modal-pricing-section');
+        if (!pricingSection) return;
+        animateContentSwap(pricingSection, extractPricingSectionInnerHtml(gym));
+    }
+
     function renderCards() {
         if (!cardsContainer) return;
         cardsContainer.innerHTML = state.gyms.map((gym) => {
@@ -181,7 +227,7 @@
                 <span class="gym-card-title"><img src="${encodeURI(gym.icon || '')}" alt="">${window.AppCore.escapeHtml(gym.name)}</span>
                 <span class="gym-card-meta">Ближайший поход: ${window.AppCore.escapeHtml(summary.upcoming)}</span>
                 <span class="gym-card-meta">Последний поход: ${window.AppCore.escapeHtml(summary.last)}</span>
-                <span class="gym-card-pricing">${renderPricingPreview(gym)}</span>
+                <span class="gym-card-pricing" data-gym-pricing="1">${renderPricingPreview(gym)}</span>
             </button>`;
         }).join('');
         updateCardsLayoutClass();
@@ -275,7 +321,7 @@
         renderCards();
 
         try {
-            const res = await fetch(window.CalendarConfig.GYMS_API_URL, {
+            const res = await fetch(window.AppEndpoints.gymsApi, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ action: 'saveGym', gym: { ...optimisticGym, pending: undefined, optimisticCreatedAt: undefined, fingerprint: undefined } })
@@ -468,8 +514,8 @@
                 state.socialMode = !state.socialMode;
                 persistSocialMode();
                 updateSocialModeUi();
-                renderCards();
-                renderGymModal();
+                updateCardsPricingPreviewAnimated();
+                updateModalPricingAnimated();
                 return;
             }
             const addressNode = event.target.closest('[data-address-link]');

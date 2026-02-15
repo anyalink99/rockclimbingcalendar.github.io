@@ -113,27 +113,29 @@
     }
 
     function isModalInteractionLocked() {
-        return Date.now() < CalendarState.modalInteractionUnlockedAt;
+        return window.AppInteractionLock.isLocked({ state: CalendarState, unlockedAtKey: 'modalInteractionUnlockedAt' });
     }
 
     function lockModalInteraction() {
-        if (CalendarState.modalInteractionTimeoutId) clearTimeout(CalendarState.modalInteractionTimeoutId);
-        CalendarState.modalInteractionToken += 1;
-        const token = CalendarState.modalInteractionToken;
-        CalendarState.modalInteractionUnlockedAt = Date.now() + CalendarConfig.MODAL_INTERACTION_LOCK_MS;
-        CalendarDom.modal.classList.add('interaction-locked');
-        CalendarState.modalInteractionTimeoutId = setTimeout(() => {
-            if (token !== CalendarState.modalInteractionToken) return;
-            CalendarDom.modal.classList.remove('interaction-locked');
-            CalendarState.modalInteractionTimeoutId = null;
-        }, CalendarConfig.MODAL_INTERACTION_LOCK_MS);
+        window.AppInteractionLock.lock({
+            state: CalendarState,
+            durationMs: CalendarConfig.MODAL_INTERACTION_LOCK_MS,
+            tokenKey: 'modalInteractionToken',
+            timeoutKey: 'modalInteractionTimeoutId',
+            unlockedAtKey: 'modalInteractionUnlockedAt',
+            onLock: () => CalendarDom.modal.classList.add('interaction-locked'),
+            onUnlock: () => CalendarDom.modal.classList.remove('interaction-locked')
+        });
     }
 
     function closeModal({ deferUnlock = false } = {}) {
-        CalendarState.modalInteractionToken += 1;
-        CalendarState.modalInteractionUnlockedAt = 0;
-        CalendarDom.modal.classList.remove('interaction-locked');
-        if (CalendarState.modalInteractionTimeoutId) clearTimeout(CalendarState.modalInteractionTimeoutId);
+        window.AppInteractionLock.reset({
+            state: CalendarState,
+            tokenKey: 'modalInteractionToken',
+            timeoutKey: 'modalInteractionTimeoutId',
+            unlockedAtKey: 'modalInteractionUnlockedAt',
+            onUnlock: () => CalendarDom.modal.classList.remove('interaction-locked')
+        });
         CalendarDom.overlay.classList.remove('open');
         CalendarDom.modal.classList.remove('open');
 

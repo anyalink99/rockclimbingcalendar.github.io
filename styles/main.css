@@ -825,6 +825,27 @@ button {
     padding-top: 6px;
 }
 
+
+.gym-card-pricing,
+.gym-modal-pricing-section {
+    transition: height 0.16s ease;
+}
+
+.gym-card-pricing.is-switching,
+.gym-modal-pricing-section.is-switching {
+    overflow: hidden;
+}
+
+.pricing-fade {
+    display: block;
+    animation: pricing-fade-in 0.16s ease-out both;
+}
+
+@keyframes pricing-fade-in {
+    from { opacity: 0.4; transform: translateY(2px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .social-mode-toggle {
     border: 1px solid var(--border);
     border-radius: 999px;
