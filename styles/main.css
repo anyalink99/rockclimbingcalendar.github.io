@@ -296,19 +296,6 @@ button {
     touch-action: pan-y;
 }
 
-.day::after {
-    content: '';
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: 6px;
-    height: 3px;
-    border-radius: 999px;
-    opacity: 0;
-    transform: scaleX(0.75);
-    transform-origin: center;
-    transition: opacity 0.15s ease, transform 0.15s ease;
-}
 
 .gym-icons {
     display: flex;
@@ -358,31 +345,20 @@ button {
     font-weight: 700;
 }
 
+.day.today .day-number {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+    font-weight: 700;
+}
+
 .day.has-events {
     border-color: var(--day-border-event);
 }
 
-.day.has-events::after {
-    background: var(--day-underline-event);
-    opacity: 1;
-    transform: scaleX(1);
-}
 
 .day.has-unsure-only {
     border-color: var(--day-border-unsure);
 }
 
-.day.has-unsure-only::after {
-    background: repeating-linear-gradient(
-        90deg,
-        var(--day-underline-unsure) 0,
-        var(--day-underline-unsure) 8px,
-        transparent 8px,
-        transparent 12px
-    );
-    opacity: 1;
-    transform: scaleX(1);
-}
 
 .count {
     font-size: 0.75em;
