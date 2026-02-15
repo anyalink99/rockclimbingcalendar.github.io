@@ -97,6 +97,14 @@
         // UI переключателя рендерится динамически в модалке.
     }
 
+    function syncSocialToggleVisuals(root = document) {
+        root.querySelectorAll('[data-social-pricing-toggle]').forEach((toggle) => {
+            toggle.classList.toggle('is-social', state.socialMode);
+            toggle.classList.toggle('is-regular', !state.socialMode);
+            toggle.setAttribute('aria-pressed', state.socialMode ? 'true' : 'false');
+        });
+    }
+
     function renderSocialModeToggle(source = 'modal') {
         return `<button type="button" class="social-mode-toggle social-mode-toggle-${source} ${state.socialMode ? 'is-social' : 'is-regular'}" data-social-pricing-toggle="1" aria-pressed="${state.socialMode ? 'true' : 'false'}" title="Переключить режим цен"><span class="social-mode-pill social-mode-pill-regular">Обычный</span><span class="social-mode-pill social-mode-pill-social">Социальный</span></button>`;
     }
@@ -176,15 +184,31 @@
     function animateContentSwap(container, nextHtml) {
         if (!container) return;
 
+        const normalizedNextHtml = String(nextHtml || '').trim();
         const currentHtml = container.innerHTML.trim();
-        if (currentHtml === String(nextHtml || '').trim()) return;
+        if (currentHtml === normalizedNextHtml) return;
 
         const startHeight = container.getBoundingClientRect().height;
+        const measureNode = document.createElement(container.tagName || 'div');
+        measureNode.style.position = 'absolute';
+        measureNode.style.visibility = 'hidden';
+        measureNode.style.pointerEvents = 'none';
+        measureNode.style.left = '-99999px';
+        measureNode.style.top = '0';
+        measureNode.style.width = `${container.getBoundingClientRect().width}px`;
+        measureNode.style.height = 'auto';
+        measureNode.style.overflow = 'visible';
+        measureNode.className = container.className.replace(/\bis-switching\b/g, '').trim();
+        measureNode.innerHTML = normalizedNextHtml;
+        document.body.appendChild(measureNode);
+        const endHeight = measureNode.getBoundingClientRect().height;
+        measureNode.remove();
+
         container.style.height = `${startHeight}px`;
         container.classList.add('is-switching');
-        container.innerHTML = `<span class="pricing-fade">${nextHtml}</span>`;
+        void container.offsetHeight;
+        container.innerHTML = `<span class="pricing-fade">${normalizedNextHtml}</span>`;
 
-        const endHeight = container.scrollHeight;
         const cleanup = () => {
             container.classList.remove('is-switching');
             container.style.height = '';
@@ -203,9 +227,7 @@
         container.addEventListener('transitionend', onTransitionEnd);
         requestAnimationFrame(() => {
             container.style.height = `${endHeight}px`;
-            if (Math.abs(endHeight - startHeight) < 1) {
-                setTimeout(cleanup, 170);
-            }
+            if (Math.abs(endHeight - startHeight) < 1) setTimeout(cleanup, 170);
         });
     }
 
@@ -530,6 +552,7 @@
                 state.socialMode = !state.socialMode;
                 persistSocialMode();
                 updateSocialModeUi();
+                syncSocialToggleVisuals();
                 updateCardsPricingPreviewAnimated();
                 updateModalPricingAnimated();
                 return;
