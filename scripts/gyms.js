@@ -10,6 +10,8 @@
 
     const SOCIAL_FILTER_KEY = 'gymsSocialPricingEnabled';
     const DEFAULT_PRICING_TIME = '19:00';
+    const TOUCH_DRAG_HOLD_MS = 320;
+    const TOUCH_DRAG_MOVE_TOLERANCE = 8;
 
     const state = {
         gyms: [],
@@ -17,7 +19,8 @@
         editMode: false,
         socialMode: false,
         gymShadows: [],
-        lastRenderedEditMode: false
+        lastRenderedEditMode: false,
+        pricingDrag: null
     };
 
     const sections = [
@@ -387,11 +390,114 @@
         gymModalBody.classList.add('gym-modal-mode-switch');
     }
 
-    function syncPricingSlotsDraftFromForm() {
+    function syncGymDraftFromForm() {
         if (!state.editMode) return;
         const gym = state.gyms.find(item => item.id === state.selectedGymId);
         if (!gym) return;
-        gym.details = { ...(gym.details || {}), pricingSlots: collectPricingSlotsFromForm(gymModalBody, { includeEmpty: true }) };
+        const details = { ...(gym.details || {}) };
+        sections.forEach((section) => {
+            details[section.key] = { ...(details[section.key] || {}) };
+            section.fields.forEach(([name, , type]) => {
+                const node = gymModalBody.querySelector(`[data-section="${section.key}"][data-name="${name}"]`);
+                if (!node) return;
+                details[section.key][name] = type === 'checkbox' ? node.checked : node.value;
+            });
+            if (section.customItemsLabel) {
+                const customNode = gymModalBody.querySelector(`[data-custom-section="${section.key}"]`);
+                details[section.key].customItems = customNode ? normalizeCustomItems(customNode.value).join(', ') : '';
+            }
+        });
+        details.pricingSlots = collectPricingSlotsFromForm(gymModalBody, { includeEmpty: true });
+        gym.details = details;
+    }
+
+    function syncPricingSlotsDraftFromForm() {
+        syncGymDraftFromForm();
+    }
+
+    function isInteractivePricingTarget(target) {
+        return Boolean(target.closest('button, input, textarea, select, a, [data-slot-select-trigger], [data-slot-select-option], .custom-select-menu'));
+    }
+
+    function clearPricingDragState({ commit = false } = {}) {
+        const drag = state.pricingDrag;
+        if (!drag) return;
+        if (drag.holdTimer) clearTimeout(drag.holdTimer);
+        if (drag.active && drag.slot) {
+            drag.slot.classList.remove('is-dragging');
+            drag.slot.removeAttribute('aria-grabbed');
+        }
+        if (commit && drag.active && drag.moved) {
+            syncPricingSlotsDraftFromForm();
+        }
+        state.pricingDrag = null;
+    }
+
+    function activatePricingDrag(drag, event) {
+        if (!drag || drag.active) return;
+        drag.active = true;
+        drag.slot.classList.add('is-dragging');
+        drag.slot.setAttribute('aria-grabbed', 'true');
+        if (drag.pointerType === 'touch') event.preventDefault();
+    }
+
+    function handlePricingDragPointerDown(event) {
+        if (!state.editMode) return;
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        const slot = event.target.closest('.pricing-slot-item');
+        if (!slot || isInteractivePricingTarget(event.target)) return;
+
+        clearPricingDragState();
+        const drag = {
+            pointerId: event.pointerId,
+            pointerType: event.pointerType,
+            startX: event.clientX,
+            startY: event.clientY,
+            slot,
+            active: false,
+            moved: false,
+            holdTimer: null
+        };
+        if (drag.pointerType === 'touch') {
+            drag.holdTimer = setTimeout(() => activatePricingDrag(drag, event), TOUCH_DRAG_HOLD_MS);
+        } else {
+            activatePricingDrag(drag, event);
+        }
+        state.pricingDrag = drag;
+    }
+
+    function handlePricingDragPointerMove(event) {
+        const drag = state.pricingDrag;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+
+        if (!drag.active) {
+            if (drag.pointerType === 'touch') {
+                const movedX = Math.abs(event.clientX - drag.startX);
+                const movedY = Math.abs(event.clientY - drag.startY);
+                if (movedX > TOUCH_DRAG_MOVE_TOLERANCE || movedY > TOUCH_DRAG_MOVE_TOLERANCE) {
+                    clearPricingDragState();
+                }
+            }
+            return;
+        }
+
+        event.preventDefault();
+        const editor = gymModalBody.querySelector('#pricingSlotsEditor');
+        if (!editor) return;
+
+        const overNode = document.elementFromPoint(event.clientX, event.clientY)?.closest('.pricing-slot-item');
+        if (!overNode || overNode === drag.slot || overNode.parentElement !== editor) return;
+
+        const overRect = overNode.getBoundingClientRect();
+        const insertAfter = event.clientY > overRect.top + overRect.height / 2;
+        editor.insertBefore(drag.slot, insertAfter ? overNode.nextSibling : overNode);
+        drag.moved = true;
+    }
+
+    function handlePricingDragPointerFinish(event) {
+        const drag = state.pricingDrag;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        clearPricingDragState({ commit: true });
     }
 
     async function saveGym() {
@@ -426,14 +532,14 @@
                 body: JSON.stringify({ action: 'saveGym', gym: { ...optimisticGym, pending: undefined, optimisticCreatedAt: undefined, fingerprint: undefined } })
             });
             if (!res.ok) return;
-            await syncGyms();
+            await syncGyms({ force: true });
         } catch {
             // локальный optimistic остаётся до следующей синхронизации
         }
     }
 
-    async function syncGyms() {
-        if (state.editMode) return;
+    async function syncGyms({ force = false } = {}) {
+        if (state.editMode && !force) return;
         const serverGyms = await fetchGymsSnapshot();
         if (!serverGyms) return;
         const mergeResult = mergeServerWithOptimisticGyms(serverGyms, state.gyms, state.gymShadows);
@@ -455,6 +561,7 @@
     }
 
     function closeGymModal() {
+        clearPricingDragState({ commit: true });
         gymOverlay.classList.remove('open');
         gymModal.classList.remove('open');
         const calendarModalOpen = document.getElementById('modal')?.classList.contains('open');
@@ -545,7 +652,7 @@
         gymModalBody.addEventListener('click', (event) => {
             if (!state.editMode) return;
             if (event.target.id === 'addPricingSlot') {
-                syncPricingSlotsDraftFromForm();
+                syncGymDraftFromForm();
                 const gym = state.gyms.find(item => item.id === state.selectedGymId);
                 if (!gym) return;
                 const next = [...getPricingSlots(gym), { label: '', dayType: '', start: '', end: '', isSocial: 'no', tariffType: 'single', prices: {} }];
@@ -583,7 +690,7 @@
                 const localTrigger = container.querySelector('[data-slot-select-trigger]');
                 if (localTrigger) localTrigger.setAttribute('aria-expanded', 'false');
                 if (input && input.getAttribute('data-slot-field') === 'tariffType') {
-                    syncPricingSlotsDraftFromForm();
+                    syncGymDraftFromForm();
                     renderGymModal();
                 }
                 return;
@@ -597,13 +704,18 @@
                 });
                 return;
             }
-            syncPricingSlotsDraftFromForm();
+            syncGymDraftFromForm();
             const gym = state.gyms.find(item => item.id === state.selectedGymId);
             if (!gym) return;
             const idx = Number(removeButton.getAttribute('data-remove-slot'));
             gym.details = { ...(gym.details || {}), pricingSlots: getPricingSlots(gym).filter((_, i) => i !== idx) };
             renderGymModal();
         });
+
+        gymModalBody.addEventListener('pointerdown', handlePricingDragPointerDown);
+        gymModalBody.addEventListener('pointermove', handlePricingDragPointerMove);
+        gymModalBody.addEventListener('pointerup', handlePricingDragPointerFinish);
+        gymModalBody.addEventListener('pointercancel', handlePricingDragPointerFinish);
 
         gymModalBody.addEventListener('click', (event) => {
             if (state.editMode) return;

@@ -383,7 +383,7 @@ button {
 }
 
 #gymOverlay {
-    z-index: 11;
+    z-index: 65;
 }
 
 #modal {
@@ -1042,7 +1042,7 @@ button {
     background: var(--card-bg);
     border-radius: 15px;
     padding: 20px;
-    z-index: 12;
+    z-index: 66;
     opacity: 0;
     pointer-events: none;
     transition: transform 0.16s ease, opacity 0.16s ease;
@@ -1196,6 +1196,14 @@ button {
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     align-items: start;
     grid-auto-flow: row dense;
+    cursor: grab;
+}
+
+.pricing-slot-item.is-dragging {
+    cursor: grabbing;
+    opacity: 0.82;
+    border-color: var(--accent);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.24);
 }
 
 .pricing-slot-item label {
