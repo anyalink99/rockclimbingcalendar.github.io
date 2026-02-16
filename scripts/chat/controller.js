@@ -106,6 +106,12 @@
             clearInterval(ChatState.syncTimerId);
             ChatState.syncTimerId = null;
         }
+
+        const calendarModalOpen = document.getElementById('modal')?.classList.contains('open');
+        const gymModalOpen = document.getElementById('gymModal')?.classList.contains('open');
+        if (!calendarModalOpen && !gymModalOpen) {
+            document.body.style.overflow = '';
+        }
     }
 
     function openChatPanel() {
