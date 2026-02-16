@@ -1046,6 +1046,17 @@ button {
     opacity: 0;
     pointer-events: none;
     transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+
+.gym-modal.editing-mode {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.gym-modal.editing-mode input,
+.gym-modal.editing-mode textarea,
+.gym-modal.editing-mode [contenteditable="true"] {
     user-select: text;
     -webkit-user-select: text;
 }

@@ -169,6 +169,7 @@
         const gym = state.gyms.find(item => item.id === state.selectedGymId);
         if (!gym) return;
         const modeChanged = state.lastRenderedEditMode !== state.editMode;
+        gymModal.classList.toggle('editing-mode', state.editMode);
         gymModalTitle.textContent = gym.name;
         const sectionMarkup = sections.map((section) => {
             const customFieldMarkup = createCustomItemsFieldMarkup(gym, section);
@@ -564,6 +565,7 @@
         clearPricingDragState({ commit: true });
         gymOverlay.classList.remove('open');
         gymModal.classList.remove('open');
+        gymModal.classList.remove('editing-mode');
         const calendarModalOpen = document.getElementById('modal')?.classList.contains('open');
         const chatPanelOpen = document.getElementById('chatPanel')?.classList.contains('open');
         if (!calendarModalOpen && !chatPanelOpen) {
