@@ -341,7 +341,7 @@ button {
 }
 
 .day.today {
-    border-bottom: 3px solid var(--day-border-event);
+    border-color: var(--day-today-ring);
 }
 
 .day.today .day-number {
@@ -351,13 +351,23 @@ button {
     font-weight: 800;
 }
 
-.day.has-events {
-    border-color: var(--day-border-event);
+.day.underlined-events::after,
+.day.underlined-unsure-only::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 6px;
+    height: 3px;
+    border-radius: 999px;
 }
 
+.day.underlined-events::after {
+    background: var(--day-underline-event);
+}
 
-.day.has-unsure-only {
-    border-color: var(--day-border-unsure);
+.day.underlined-unsure-only::after {
+    background: var(--day-underline-unsure);
 }
 
 
@@ -553,6 +563,12 @@ button {
     to {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+@keyframes chat-loader-spin {
+    to {
+        transform: rotate(360deg);
     }
 }
 
@@ -754,6 +770,18 @@ button {
     gap: 8px;
     user-select: text;
     -webkit-user-select: text;
+}
+
+.chat-messages.is-loading-older::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    margin: 0 auto 8px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-top-color: var(--accent);
+    animation: chat-loader-spin 0.7s linear infinite;
+    flex: 0 0 auto;
 }
 
 .chat-message-item {

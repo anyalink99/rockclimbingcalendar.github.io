@@ -70,6 +70,7 @@
     async function loadOlderChatMessages() {
         if (!ChatState.hasMore || ChatState.loading) return;
         ChatState.loading = true;
+        ChatDom.messages.classList.add('is-loading-older');
         const previousHeight = ChatDom.messages.scrollHeight;
 
         try {
@@ -88,6 +89,7 @@
             console.error(error);
         } finally {
             ChatState.loading = false;
+            ChatDom.messages.classList.remove('is-loading-older');
         }
     }
 
