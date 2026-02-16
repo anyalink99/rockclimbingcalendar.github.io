@@ -351,23 +351,12 @@ button {
     font-weight: 800;
 }
 
-.day.underlined-events::after,
-.day.underlined-unsure-only::after {
-    content: '';
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: 6px;
-    height: 3px;
-    border-radius: 999px;
+.day.underlined-events {
+    border-bottom: 3px solid var(--day-underline-event);
 }
 
-.day.underlined-events::after {
-    background: var(--day-underline-event);
-}
-
-.day.underlined-unsure-only::after {
-    background: var(--day-underline-unsure);
+.day.underlined-unsure-only {
+    border-bottom: 3px solid var(--day-underline-unsure);
 }
 
 

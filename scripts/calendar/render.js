@@ -41,8 +41,8 @@
                 isToday ? 'today' : '',
                 hasSureEvents ? 'has-events' : '',
                 hasUnsureOnly ? 'has-unsure-only' : '',
-                hasSureEvents && !isToday ? 'underlined-events' : '',
-                hasUnsureOnly && !isToday ? 'underlined-unsure-only' : ''
+                hasSureEvents ? 'underlined-events' : '',
+                hasUnsureOnly ? 'underlined-unsure-only' : ''
             ].filter(Boolean).join(' ');
 
             CalendarDom.calendar.innerHTML += `
